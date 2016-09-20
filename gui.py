@@ -7,6 +7,7 @@ import Queue
 
 import matplotlib
 matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
 
 from numpy import arange, sin, pi
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2TkAgg
@@ -45,10 +46,10 @@ class DaqConnection:
     while True:
       if self.sock:
         new_data = self.sock.recv(4096)
-        # TODO: find a way to split the incoming data points and store them 
-        #       in a FIFO queue
-        self.queue.put(new_data)
-        print(new_data)
+        points = new_data.split()
+        for point in points:
+          self.queue.put(point)
+        # print(new_data)
         time.sleep(1)
 
   def yield_data_point(self):
