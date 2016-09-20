@@ -77,8 +77,11 @@ def update_line(num, data, line):
     new_value = daq.queue.get()
     data.append(new_value)
     if len(data) > 255:
-      data = data[1:]
-    line.set_data(xrange(len(data)), data)
+      plt.xlim(len(data) - 255, len(data))
+      line.set_data(xrange(len(data) - 255, len(data)), 
+                    data[len(data) - 255:])
+    else:
+      line.set_data(xrange(len(data)), data)
   return line,
 
 fig1 = plt.figure()
