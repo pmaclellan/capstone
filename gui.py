@@ -51,8 +51,9 @@ class DaqConnection:
         points = new_data.split()
         for point in points:
           self.queue.put(point)
+        print(self.queue.qsize())
         # print(new_data)
-        time.sleep(1)
+        # time.sleep(0.1)
 
   def yield_data_point(self):
     if not self.queue.empty():
@@ -78,6 +79,7 @@ def update_line(num, data, line):
     data.append(new_value)
     if len(data) > 255:
       plt.xlim(len(data) - 255, len(data))
+      plt.axis([len(data) - 255, len(data), 0, 256])
       line.set_data(xrange(len(data) - 255, len(data)), 
                     data[len(data) - 255:])
     else:
@@ -90,10 +92,11 @@ data = []
 l, = plt.plot([], [], 'r-')
 plt.xlim(0, 256)
 plt.ylim(0, 256)
-plt.xlabel('x')
+plt.xlabel('Sample #')
+plt.ylabel('Value')
 plt.title('DAQula')
 line_ani = animation.FuncAnimation(fig1, update_line, 500, fargs=(data, l),
-                                   interval=50, blit=True)
+                                   interval=50, blit=False)
 plt.show()
 
 # a tk.DrawingArea

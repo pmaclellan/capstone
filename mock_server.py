@@ -25,7 +25,7 @@ while True:
 	  while True:
 	    connection.sendall(str(data) + '\n')
 	    data = (data + 1) % 256
-	    time.sleep(0.1)
+	    # time.sleep(0.01)
 	            
   finally:
 	  # Clean up the connection
