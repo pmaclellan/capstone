@@ -49,9 +49,10 @@ class DaqConnection:
       if self.sock:
         new_data = self.sock.recv(4096)
         points = new_data.split()
+        print(points)
         for point in points:
           self.queue.put(point)
-        print(self.queue.qsize())
+        # print(self.queue.qsize())
         # print(new_data)
         # time.sleep(0.1)
 
@@ -64,19 +65,13 @@ class DaqConnection:
 root = Tk.Tk()
 root.wm_title("DAQula Mock Data")
 daq = DaqConnection()
-# Create matplotlib Figure
-# this contains the graph of incoming data
-# fig = Figure(figsize=(5, 4), dpi=100)
-# axes = fig.add_subplot(111)
-# timesteps = arange(0.0, 3.0, 0.01)
-# s = 0.7*sin(2*pi*timesteps)
-
-# axes.plot(timesteps, s)
 
 def update_line(num, data, line):
   if not daq.queue.empty():
-    new_value = daq.queue.get()
-    data.append(new_value)
+    # update 4 values at a time to increase speed
+    for i in range(4):
+      new_value = daq.queue.get()
+      data.append(new_value)
     if len(data) > 255:
       plt.xlim(len(data) - 255, len(data))
       plt.axis([len(data) - 255, len(data), 0, 256])
@@ -108,13 +103,11 @@ toolbar = NavigationToolbar2TkAgg(canvas, root)
 toolbar.update()
 canvas._tkcanvas.pack(side=Tk.TOP, fill=Tk.BOTH, expand=1)
 
-
 def on_key_event(event):
   print('you pressed %s' % event.key)
   key_press_handler(event, canvas, toolbar)
 
 canvas.mpl_connect('key_press_event', on_key_event)
-
 
 def _quit():
   root.quit()     # stops mainloop
