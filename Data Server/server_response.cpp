@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT 34900
+#define PORT 10001
 #define BACKLOG 10
 #define MAXSIZE 1024
 
@@ -66,7 +66,7 @@ int main()
 
         while(1) 
 	{
-            if ((num = recv(client_fd, buffer, 10240,0)) == -1) 
+	    if ((num = recv(client_fd, buffer, 10240,0)) == -1) 
 	    {
             	perror("recv");
             	exit(1);
@@ -84,14 +84,26 @@ int main()
 	    	printf("Client says: %s", buffer);
 	    }
 
+	    //fgets(buffer, MAXSIZE-1, stdin);
 	    if ((send(client_fd, buffer, strlen(buffer), 0)) == -1)
 	    {
 	    	fprintf(stderr, "Failure Sending Messages\n");
 	    	close(client_fd);
 	    	break;
             }
-	}
 
+	    else
+	    {
+		printf("Message being sent: %s",buffer);
+		num = recv(client_fd, buffer, sizeof(buffer), 0);
+		if ( num <= 0 )
+		{
+			printf("Either Connection Closed or Error\n");
+			break;
+		}
+		buff[num] = '\0';
+	    }
+	}
 	close(client_fd);
     }
     close(socket_fd); 
