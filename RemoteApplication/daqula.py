@@ -20,7 +20,10 @@ class DaqConnection:
     self.queue = Queue.Queue()
     self.sig = CustomSignal()
     self.sig.connected.connect(lambda: self.parentWindow.setStatusBarMessage('Connected'))
+    self.sig.connected.connect(lambda: self.parentWindow.daqWidget.toggleConnectionButtons(self.connected))
     self.sig.disconnected.connect(lambda: self.parentWindow.setStatusBarMessage('Disconnected'))
+    self.sig.disconnected.connect(lambda: self.parentWindow.daqWidget.toggleConnectionButtons(self.connected))
+    self.connected = False
 
   def connect_to_server(self):
     # Create a TCP/IP socket
@@ -30,16 +33,19 @@ class DaqConnection:
     # print('connecting to %s port %s' % self.server_address)
     try:
         self.sock.connect(self.server_address)
+        self.connected = True
         self.sig.connected.emit()
+        self.receiver_thread = threading.Thread(target=self.listen_for_data)
+        self.receiver_thread.daemon = True
+        self.receiver_thread.start()
     except Exception, e:
         print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
-    self.receiver_thread = threading.Thread(target=self.listen_for_data)
-    self.receiver_thread.daemon = True
-    self.receiver_thread.start()
+        self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
 
   def disconnect_from_server(self):
     if self.sock is not None:
         self.sock.close()
+        self.connected = False
         self.sig.disconnected.emit()
 
   # TCP Receiver thread
@@ -98,28 +104,32 @@ class DaqWidget(QtGui.QWidget):
         self.initUI()
 
     def initUI(self):
-        portEdit = QtGui.QLineEdit()
+        self.portEdit = QtGui.QLineEdit()
 
-        connectBtn = QtGui.QPushButton('Connect')
-        connectBtn.clicked.connect(self.parent.daq.connect_to_server)
-        disconnectBtn = QtGui.QPushButton('Disconnect')
-        disconnectBtn.clicked.connect(self.parent.daq.disconnect_from_server)
-        quitBtn = QtGui.QPushButton('Quit')
-        quitBtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
+        self.connectBtn = QtGui.QPushButton('Connect')
+        self.connectBtn.clicked.connect(self.parent.daq.connect_to_server)
+        self.disconnectBtn = QtGui.QPushButton('Disconnect')
+        self.disconnectBtn.clicked.connect(self.parent.daq.disconnect_from_server)
+        self.quitBtn = QtGui.QPushButton('Quit')
+        self.quitBtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
 
-        grid = QtGui.QGridLayout()
-        grid.setSpacing(10)
+        self.grid = QtGui.QGridLayout()
+        self.grid.setSpacing(10)
 
-        grid.addWidget(portEdit, 1, 0)
-        grid.addWidget(connectBtn, 2, 0)
-        grid.addWidget(disconnectBtn, 2, 1)
-        grid.addWidget(quitBtn, 2, 2)
+        self.grid.addWidget(self.portEdit, 1, 0)
+        self.grid.addWidget(self.connectBtn, 2, 0)
+        self.grid.addWidget(self.disconnectBtn, 2, 1)
+        self.grid.addWidget(self.quitBtn, 2, 2)
         
-        self.setLayout(grid) 
+        self.setLayout(self.grid)
         
         # self.setGeometry(300, 300, 350, 300)
         # self.setWindowTitle('Review')    
         self.show()
+
+    def toggleConnectionButtons(self, connected):
+        self.connectBtn.setEnabled(not connected)
+        self.disconnectBtn.setEnabled(connected)
      
 
 def main():
