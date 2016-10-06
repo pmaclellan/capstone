@@ -11,18 +11,20 @@ from PyQt4 import QtGui, QtCore
 class CustomSignal(QtCore.QObject):
 
     connected = QtCore.pyqtSignal()
+    disconnected = QtCore.pyqtSignal()
 
 
 class DaqConnection:
   def __init__(self, parent):
     self.parentWindow = parent
-    # Create a TCP/IP socket
-    self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     self.queue = Queue.Queue()
     self.sig = CustomSignal()
     self.sig.connected.connect(lambda: self.parentWindow.setStatusBarMessage('Connected'))
+    self.sig.disconnected.connect(lambda: self.parentWindow.setStatusBarMessage('Disconnected'))
 
   def connect_to_server(self):
+    # Create a TCP/IP socket
+    self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Connect the socket to the port where the server is listening
     self.server_address = ('localhost', 10001)
     # print('connecting to %s port %s' % self.server_address)
@@ -30,10 +32,15 @@ class DaqConnection:
         self.sock.connect(self.server_address)
         self.sig.connected.emit()
     except Exception, e:
-        alert("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
+        print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
     self.receiver_thread = threading.Thread(target=self.listen_for_data)
     self.receiver_thread.daemon = True
     self.receiver_thread.start()
+
+  def disconnect_from_server(self):
+    if self.sock is not None:
+        self.sock.close()
+        self.sig.disconnected.emit()
 
   # TCP Receiver thread
   def listen_for_data(self):
@@ -95,6 +102,8 @@ class DaqWidget(QtGui.QWidget):
 
         connectBtn = QtGui.QPushButton('Connect')
         connectBtn.clicked.connect(self.parent.daq.connect_to_server)
+        disconnectBtn = QtGui.QPushButton('Disconnect')
+        disconnectBtn.clicked.connect(self.parent.daq.disconnect_from_server)
         quitBtn = QtGui.QPushButton('Quit')
         quitBtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
 
@@ -103,7 +112,8 @@ class DaqWidget(QtGui.QWidget):
 
         grid.addWidget(portEdit, 1, 0)
         grid.addWidget(connectBtn, 2, 0)
-        grid.addWidget(quitBtn, 2, 1)
+        grid.addWidget(disconnectBtn, 2, 1)
+        grid.addWidget(quitBtn, 2, 2)
         
         self.setLayout(grid) 
         
