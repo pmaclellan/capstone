@@ -9,67 +9,91 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define PORT 34900
-#define BACKLOG 10
-#define MAXSIZE 1024
+#define PORT 10001
+#define BACKLOG 5
+
+void error(const char *msg)
+{
+    perror(msg);
+    exit(1);
+}
 
 int main()
 {
     struct sockaddr_in server;
     struct sockaddr_in dest;
-    int status,socket_fd, client_fd,num;
+    int socket_fd, client_fd, num, n;
     socklen_t size;
 
-    char buffer[10241];
+    char buffer[256];
     char *buff;
-    int yes =1;
+    int yes = 1;
 
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0))== -1) 
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
     {
-        fprintf(stderr, "Socket failure!!\n");
-        exit(1);
+	error("ERROR socket failure");
     }
 
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) 
+    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
     {
-        perror("setsockopt");
-        exit(1);
+	error("ERROR setsockopt");
     }
 
     memset(&server, 0, sizeof(server));
-    memset(&dest,0,sizeof(dest));
+    memset(&dest, 0, sizeof(dest));
     server.sin_family = AF_INET;
     server.sin_port = htons(PORT);
     server.sin_addr.s_addr = INADDR_ANY; 
-    if ((bind(socket_fd, (struct sockaddr *)&server, sizeof(struct sockaddr )))== -1)   
+    if (bind(socket_fd, (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
-        fprintf(stderr, "Binding Failure\n");
-        exit(1);
+	error("ERROR binding failure");
     }
 
-    if ((listen(socket_fd, BACKLOG))== -1)
+    if (listen(socket_fd, BACKLOG) < 0)
     {
-        fprintf(stderr, "Listening Failure\n");
-        exit(1);
+	error("ERROR listening failure");
     }
 
     while(1) 
     {
         size = sizeof(struct sockaddr_in);  
 
-        if ((client_fd = accept(socket_fd, (struct sockaddr *)&dest, &size))==-1) 
+        if ((client_fd = accept(socket_fd, (struct sockaddr *)&dest, &size)) < 0) 
 	{
-            perror("accept");
-            exit(1);
+	    error("ERROR acception failure");
         }
         printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
         while(1) 
 	{
-            if ((num = recv(client_fd, buffer, 10240,0)) == -1) 
+/*
+	    n = read(client_fd, buffer, 255);
+	    if (n < 0)
 	    {
-            	perror("recv");
-            	exit(1);
+	        printf("Error reading from socket\n");
+	        break;
+	    }
+	    else if (n == 0)
+	    {
+		printf("Connection closed\n");
+	    	break;
+	    }
+	    printf("Here is the message: %s\n", buffer);
+
+	    bzero(buffer, 256);
+
+	    if (send(client_fd, buffer, strlen(buffer), 0) < 0)
+	    {
+		fprintf(stderr, "Failure Sending Messages\n");
+		close(client_fd);
+		break;
+	    }
+	}
+*/
+
+            if ((num = recv(client_fd, buffer, 10240, 0)) < 0) 
+	    {
+		error("ERROR receiving error");
             }   
 	
             else if (num == 0) 
@@ -78,13 +102,13 @@ int main()
             	break;
             }
 
-	    else if (num >= 1)
+	    else
 	    {
 	    	buffer[num] = '\0';
 	    	printf("Client says: %s", buffer);
 	    }
 
-	    if ((send(client_fd, buffer, strlen(buffer), 0)) == -1)
+	    if (send(client_fd, buffer, strlen(buffer), 0) < 0)
 	    {
 	    	fprintf(stderr, "Failure Sending Messages\n");
 	    	close(client_fd);
