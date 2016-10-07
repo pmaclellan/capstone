@@ -4,10 +4,23 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#define READ_ADDR 100 // 100 for test
+#define REGISTER_COUNT 8
+#define BASE_REGISTER 100 // 100 for test
 
 int main (int argc, char* argv[])
 {
+    // Define the file paths to write to
+    char* dmaFifoPaths[] = {
+        "/tmp/dma-register-1",
+        "/tmp/dma-register-2",
+        "/tmp/dma-register-3",
+        "/tmp/dma-register-4",
+        "/tmp/dma-register-5",
+        "/tmp/dma-register-6",
+        "/tmp/dma-register-7",
+        "/tmp/dma-register-8"
+    };
+
     int fd, fifoFd;
     unsigned gpio_addr;
     int value = 0;
@@ -18,7 +31,7 @@ int main (int argc, char* argv[])
     unsigned page_size=sysconf(_SC_PAGESIZE);
 
     /* Open /dev/mem file */
-    fd = open ("/dev/mem", O_RDWR);
+    fd = open("/dev/mem", O_RDWR);
     if (fd < 1) {
         perror(argv[0]);
         return -1;
@@ -34,8 +47,15 @@ int main (int argc, char* argv[])
     ptr = mmap(NULL, page_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, page_addr);
 
 
-    // Make a FIFO to talk to other processes
-    mkfifo(myfifo, 0666);
+    // Make a bunch of fifos and initialize mmap
+    for(int i = 0; i < REGISTER_COUNT; i++)
+    {
+        mkfifo(dmaFifoPaths[i], 0666);
+        gpio_addr = BASE_REGISTER;
+        page_addr = (gpio_addr & (~(page_size-1)));
+        page_offset = gpio_addr - page_addr;
+        ptr = mmap(NULL, page_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, page_addr);
+    }
 
     while(1)
     {
