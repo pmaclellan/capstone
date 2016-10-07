@@ -97,7 +97,7 @@ class MainWindow(QtGui.QMainWindow):
 
     def initUI(self):               
         self.statusBar().showMessage('Not Connected')
-        self.setGeometry(300, 300, 350, 300)
+        self.setGeometry(300, 300, 900, 600)
         self.setWindowTitle('Daqula')
         self.show()
 
@@ -180,7 +180,7 @@ class DaqWidget(QtGui.QWidget):
         self.quitBtn = QtGui.QPushButton('Quit')
         self.quitBtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
 
-        self.dc = MyDynamicMplCanvas(self, width=5, height=4, dpi=100)
+        self.dc = MyDynamicMplCanvas(self, width=10, height=4, dpi=100)
 
         self.grid = QtGui.QGridLayout()
         self.grid.setSpacing(10)
