@@ -82,11 +82,20 @@ class DaqConnection:
 
         def listen_for_data(self):
             synchronized = False
-            within_block = False
-            carry = False
             temp_buffer = []
             temp_byte = '00000000'
-            n = 32 #number of channels, will be a parameter
+            readings = {}
+            #TODO: read active channels upon connecting to server
+            active_channels = ['0.0', '0.1', '0.2', '0.3',
+                               '1.0', '1.1', '1.2', '1.3',
+                               '2.0', '2.1', '2.2', '2.3',
+                               '3.0', '3.1', '3.2', '3.3',
+                               '4.0', '4.1', '4.2', '4.3',
+                               '5.0', '5.1', '5.2', '5.3',
+                               '6.0', '6.1', '6.2', '6.3',
+                               '7.0', '7.1', '7.2', '7.3']
+            block_offset = 0 # which reading we are currently expecting: 0 -> (n-1) **NOTE: DEAD and TS not counted
+            n = 32 # number of channels, will be sent as a parameter
             while True:
                 if self.sock:
                     incoming_buffer = bytearray(b" " * 512)  # create "empty" buffer to store incoming data
@@ -99,21 +108,6 @@ class DaqConnection:
                         binary = byte1 + byte2
                         value = int(binary, base=2)
                         if not synchronized:
-                            # if carry: # we're possibly misaligned, try to fix it
-                            #     carry = False # we're already carrying, be normal next time
-                            #     binary = temp_byte + byte1 # temp_byte should be 0xDE here, byte1 0xAD if we're DEAD
-                            #     value = int(binary, base=2)
-                            #     if value == 57005 and temp_buffer[-1 * (n + 2)] == 57005: # 0xDEAD
-                            #         synchronized = True
-                            #         # flush the buffer to only include the new DEAD
-                            #         temp_buffer = [value]
-                            #         i += 3  # realign and skip over the timestamp bytes for now
-                            #         continue
-                            #     else:
-                            #         # not in sync yet, but need to store in buffer anyways
-                            #         temp_buffer.append(value)
-                            #         i += 1 # just move by one byte, since we didn't look at byte2 yet
-                            #         continue
                             if byte1 == '11011110': # 0xDE
                                 if byte2 == '10101101': # 0xAD
                                     # we found a DEAD, let's see if it aligns with a previous DEAD
@@ -121,6 +115,9 @@ class DaqConnection:
                                         synchronized = True
                                         # flush the buffer to only include the new DEAD
                                         temp_buffer = [value]
+                                        temp_buffer.append(0) # TODO: placeholder for timestamp
+                                        # reset readings just to be sure
+                                        readings = {}
                                         i += 4 #just skip over the timestamp bytes for now
                                         continue
                                     else:
@@ -140,6 +137,7 @@ class DaqConnection:
                                     value = int(binary, base=2)
                                     temp_buffer.append(value)
                                     i += 1 # only move ahead by one byte to realign ourselves
+                                    # We can't be sure we're back in sync yet, need to wait until the next DEAD
                                     continue
                                 else:
                                     temp_buffer.append(value)
@@ -153,20 +151,29 @@ class DaqConnection:
                                 temp_byte = byte1
                                 continue
 
-                        # vvv DISREGARD FOR NOW vvv
-                        # convert 16-bit string to int
-                        value = int(binary, base=2)
-                        temp_buffer.append(value)
-                        if within_block and synchronized:
-                            #do some shit
-                        else:
-                            if value == 57005 and temp_buffer[-1 * (n + 2)] == 57005: #0xdead
-                                synchronized = True
-
-                        # add new value to queue to be processed by graph
-                        self.queue.put(value)
-                        # increment by 2 bytes each time to account for uint16_t type
-                        i += 2
+                        elif synchronized:
+                            if value == 57005: # 0xDEAD
+                                if len(temp_buffer) >= (n + 2) and temp_buffer[-1 * (n + 2)]:
+                                    # all good, still synced up
+                                    temp_buffer = [value] # flush the buffer
+                                    temp_buffer.append(0) # TODO: placeholder for timestamp
+                                    block_offset = 0
+                                    i += 4 #skip the timestamp bytes for now
+                                    continue
+                                else:
+                                    # well fuck, we're either out of sync or happened to read a DEAD
+                                    synchronized = False
+                                    temp_buffer.append(value)
+                                    i += 2
+                                    continue
+                            else:
+                                readings[active_channels[block_offset]] = value
+                                i += 2
+                                block_offset += 1
+                                if block_offset >= n:
+                                    write_to_queue(readings) # TODO: define new queue that holds dictionaries
+                                    readings = {} # clear readings before starting next block
+                                continue
 
     def yield_data_point(self):
         if not self.queue.empty():
