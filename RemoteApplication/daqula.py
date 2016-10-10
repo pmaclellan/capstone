@@ -78,6 +78,96 @@ class DaqConnection:
                     # increment by 2 bytes each time to account for uint16_t type
                     i += 2
 
+                    # TCP Receiver thread
+
+        def listen_for_data(self):
+            synchronized = False
+            within_block = False
+            carry = False
+            temp_buffer = []
+            temp_byte = '00000000'
+            n = 32 #number of channels, will be a parameter
+            while True:
+                if self.sock:
+                    incoming_buffer = bytearray(b" " * 512)  # create "empty" buffer to store incoming data
+                    self.sock.recv_into(incoming_buffer)
+                    i = 0
+                    while i+1 < len(incoming_buffer) and incoming_buffer[i+1] != b' ':
+                        # convert each byte to binary strings
+                        byte1 = '{:08b}'.format(incoming_buffer[i + 1])
+                        byte2 = '{:08b}'.format(incoming_buffer[i])
+                        binary = byte1 + byte2
+                        value = int(binary, base=2)
+                        if not synchronized:
+                            # if carry: # we're possibly misaligned, try to fix it
+                            #     carry = False # we're already carrying, be normal next time
+                            #     binary = temp_byte + byte1 # temp_byte should be 0xDE here, byte1 0xAD if we're DEAD
+                            #     value = int(binary, base=2)
+                            #     if value == 57005 and temp_buffer[-1 * (n + 2)] == 57005: # 0xDEAD
+                            #         synchronized = True
+                            #         # flush the buffer to only include the new DEAD
+                            #         temp_buffer = [value]
+                            #         i += 3  # realign and skip over the timestamp bytes for now
+                            #         continue
+                            #     else:
+                            #         # not in sync yet, but need to store in buffer anyways
+                            #         temp_buffer.append(value)
+                            #         i += 1 # just move by one byte, since we didn't look at byte2 yet
+                            #         continue
+                            if byte1 == '11011110': # 0xDE
+                                if byte2 == '10101101': # 0xAD
+                                    # we found a DEAD, let's see if it aligns with a previous DEAD
+                                    if len(temp_buffer) >= (n + 2) and temp_buffer[-1 * (n + 2)] == 57005: # 0xDEAD
+                                        synchronized = True
+                                        # flush the buffer to only include the new DEAD
+                                        temp_buffer = [value]
+                                        i += 4 #just skip over the timestamp bytes for now
+                                        continue
+                                    else:
+                                        # not in sync yet, store in buffer
+                                        temp_buffer.append(value)
+                                        i += 2
+                                        continue
+                                else:
+                                    # no DEAD here, move along
+                                    temp_buffer.append(value)
+                            elif byte2 == '11011110': # 0xDE
+                                # carry = True
+                                if temp_byte == '10101101': # 0xAD where temp_byte is the byte1 from the prev iteration
+                                    # we found a DEAD, but we're misaligned by one byte
+                                    # reconstruct binary string with the DEAD together
+                                    binary = byte2 + temp_byte
+                                    value = int(binary, base=2)
+                                    temp_buffer.append(value)
+                                    i += 1 # only move ahead by one byte to realign ourselves
+                                    continue
+                                else:
+                                    temp_buffer.append(value)
+                                    i += 2
+                                    continue
+                            else:
+                                # we've got nothing, throw it in the buffer and better luck next time
+                                temp_buffer.append(value)
+                                i += 2
+                                # but wait, let's save byte1 in case we're off by one...
+                                temp_byte = byte1
+                                continue
+
+                        # vvv DISREGARD FOR NOW vvv
+                        # convert 16-bit string to int
+                        value = int(binary, base=2)
+                        temp_buffer.append(value)
+                        if within_block and synchronized:
+                            #do some shit
+                        else:
+                            if value == 57005 and temp_buffer[-1 * (n + 2)] == 57005: #0xdead
+                                synchronized = True
+
+                        # add new value to queue to be processed by graph
+                        self.queue.put(value)
+                        # increment by 2 bytes each time to account for uint16_t type
+                        i += 2
+
     def yield_data_point(self):
         if not self.queue.empty():
           yield self.queue.get()
