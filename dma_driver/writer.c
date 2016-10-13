@@ -19,18 +19,18 @@ int main (int argc, char* argv[])
     char* dmaFifoPath = "/tmp/dma-fifo";
 
     // Define registers to read from
-    unsigned registers[] = {
-        0xb7758000,
-        0xb7758000,
-        0xb7758000,
-        0xb7758000,
-        0xb7758000,
-        0xb7758000,
-        0xb7758000,
-        0xb7758000
-    };
+    // unsigned registers[] = {
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000,
+    //     0xb7758000
+    // };
 
-    uint64_t value;
+    unsigned value;
     uint16_t values[VALUES_SIZE]; // 32 channels plus timestamp and header
     
     int fd;
@@ -39,7 +39,7 @@ int main (int argc, char* argv[])
     unsigned gpio_addr;
     unsigned page_addr;
     unsigned page_offsets[REGISTER_COUNT];
-    unsigned page_size=sizeof(uint64_t);
+    unsigned page_size=sysconf(_SC_PAGESIZE);
 
     /* Open /dev/mem file */
     fd = open("/dev/mem", O_RDWR);
@@ -48,15 +48,22 @@ int main (int argc, char* argv[])
         return -1;
     }
 
-    // Make a bunch of fifos and initialize mmap
+    // Make a fifo and initialize mmap
+    mkfifo(dmaFifoPath, 0666);
     void* ptrs[REGISTER_COUNT];
     for(i = 0; i < REGISTER_COUNT; i++)
     {
-        mkfifo(dmaFifoPath, 0666);
-        gpio_addr = registers[i];
+        gpio_addr = strtoul("80000",NULL, 0);
         page_addr = (gpio_addr & (~(page_size-1)));
         page_offsets[i] = gpio_addr - page_addr;
+        printf("gpio_addr=%d, page_addr=%d, page_size=%d, page_offsets[i]=%d\n", gpio_addr, page_addr, page_size, page_offsets[i]);
         ptrs[i] = mmap(NULL, page_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, page_addr);
+    }
+
+    // Print pointers to get debugging info
+    for(i = 0; i < REGISTER_COUNT; i++)
+    {
+        printf("ptrs[%d]=%p\n", i, ptrs[i]);
     }
 
     while(1)
@@ -82,7 +89,7 @@ int main (int argc, char* argv[])
         while(registerNumber <  REGISTER_COUNT)
         {
             // Read the register
-            value = *((uint64_t *)(ptrs[i] + page_offsets[i]));
+            value = *((unsigned *)(ptrs[registerNumber] + page_offsets[registerNumber]));
 
             // Get adc values
             values[adc0] = (uint16_t)((MASK_ADC0 & value) >> 48);
@@ -108,6 +115,7 @@ int main (int argc, char* argv[])
         while(i < VALUES_SIZE)
         {
             write(fifoFd, &values[i], sizeof(uint16_t));
+            i++;
         }
         close(fifoFd);
 

@@ -29,7 +29,6 @@ int main()
             fd = open(dmaFifoPaths[i], O_RDONLY);
             read(fd, &buf, sizeof(buf));
             printf("Received from register %d: %d\n", i, buf);
-            close(fd); 
         }
 
     }
