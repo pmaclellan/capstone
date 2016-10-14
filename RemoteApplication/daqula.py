@@ -7,6 +7,7 @@ import threading
 import Queue
 import time
 import random
+import control_signals_pb2
 from PyQt4 import QtGui, QtCore
 from numpy import arange, sin, pi
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -30,22 +31,39 @@ class DaqConnection:
         self.sig.disconnected.connect(lambda: self.parentWindow.daqWidget.toggleConnectionButtons(self.connected))
         self.sig.new_data.connect(self.parentWindow.forward_to_plot)
         self.connected = False
-        self.server_address = ('localhost', 10001)
+        self.server_address = ('192.168.211.18X', 10001)
 
     def update_server_address(self, string):
         self.server_address = string, 10001
 
     def connect_to_server(self):
         # Create a TCP/IP socket
-        self.status_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # print('connecting to %s port %s' % self.server_address)
+        self.control_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.status_sock.connect(self.server_address)
+            self.control_sock.connect(self.server_address)
             self.connected = True
             self.sig.connected.emit()
+        except Exception, e:
+            print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
+            self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
+
+        startRequest = control_signals_pb2.StartRequest()
+        startRequest.port = 0
+        startRequest.channels = 0xffffffff # TODO: read from active_channels list
+        try:
+            self.control_sock.send(startRequest.SerializeToString())
+            handshake_buffer = bytearray(256)
+            self.control_sock.recv_into(handshake_buffer)
+            reply = control_signals_pb2.StartRequest()
+            reply.ParseFromString(handshake_buffer)
+            self.data_sock.connect(self.server_address[0], reply.port)
             self.receiver_thread = threading.Thread(target=self.listen_for_data)
             self.receiver_thread.daemon = True
             self.receiver_thread.start()
+        except Exception, e:
+            print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
+            self.parentWindow.setStatusBarMessage("Unable to establish data stream on secondary port")
             # data_port = self.read_initial_status()
             # self.raw_data_address = self.server_address[0], data_port
             # if self.raw_data_address[1] != None:
@@ -56,27 +74,24 @@ class DaqConnection:
             #     self.receiver_thread.start()
             # else:
             #     print("ERROR: Cannot acquire secondary socket information from server!")
-        except Exception, e:
-            print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
-            self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
 
     def disconnect_from_server(self):
-        if self.status_sock is not None:
-            self.status_sock.close()
+        if self.control_sock is not None:
+            self.control_sock.close()
             self.connected = False
             self.sig.disconnected.emit()
 
-    def read_initial_status(self):
-        status_buffer = bytearray(b" " * 32)  # create "empty" buffer to store incoming data
-        self.status_sock.recv_into(status_buffer)
-        i = 0
-        while i + 1 < len(status_buffer) and status_buffer[i + 1] != b' ':
-            # convert each byte to binary strings
-            byte1 = '{:08b}'.format(status_buffer[i + 1])
-            byte2 = '{:08b}'.format(status_buffer[i])
-            binary = byte1 + byte2
-            value = int(binary, base=2)
-        return 10002 # raw data connection port
+    # def read_initial_status(self):
+    #     status_buffer = bytearray(b" " * 32)  # create "empty" buffer to store incoming data
+    #     self.control_sock.recv_into(status_buffer)
+    #     i = 0
+    #     while i + 1 < len(status_buffer) and status_buffer[i + 1] != b' ':
+    #         # convert each byte to binary strings
+    #         byte1 = '{:08b}'.format(status_buffer[i + 1])
+    #         byte2 = '{:08b}'.format(status_buffer[i])
+    #         binary = byte1 + byte2
+    #         value = int(binary, base=2)
+    #     return 10002 # raw data connection port
 
     # TCP Receiver thread
     # def listen_for_data(self):
@@ -119,9 +134,9 @@ class DaqConnection:
         block_offset = 0 # which reading we are currently expecting: 0 -> (n-1) **NOTE: DEAD and TS not counted
         n = 32 # number of channels, will be sent as a parameter
         while True:
-            if self.status_sock: # TODO: dual-socket system
+            if self.data_sock: # TODO: dual-socket system
                 incoming_buffer = bytearray(b' ' * 512)  # create "empty" buffer to store incoming data
-                self.status_sock.recv_into(incoming_buffer)
+                self.data_sock.recv_into(incoming_buffer)
                 i = 0
                 while i+1 < len(incoming_buffer) and incoming_buffer[i+1] != b' ':
                     # convert each byte to binary strings
@@ -262,7 +277,7 @@ class MyDynamicMplCanvas(MyMplCanvas):
         MyMplCanvas.__init__(self, *args, **kwargs)
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_figure)
-        timer.start(1000)
+        timer.start(10000)
         self.queue = Queue.Queue()
 
     def compute_initial_figure(self):
