@@ -16,7 +16,7 @@ class CustomSignal(QtCore.QObject):
 
     connected = QtCore.pyqtSignal()
     disconnected = QtCore.pyqtSignal()
-    new_data = QtCore.pyqtSignal(float)
+    new_data = QtCore.pyqtSignal(dict)
 
 
 class DaqConnection:
@@ -120,7 +120,7 @@ class DaqConnection:
         n = 32 # number of channels, will be sent as a parameter
         while True:
             if self.status_sock: # TODO: dual-socket system
-                incoming_buffer = bytearray(b" " * 512)  # create "empty" buffer to store incoming data
+                incoming_buffer = bytearray(b' ' * 512)  # create "empty" buffer to store incoming data
                 self.status_sock.recv_into(incoming_buffer)
                 i = 0
                 while i+1 < len(incoming_buffer) and incoming_buffer[i+1] != b' ':
@@ -129,6 +129,8 @@ class DaqConnection:
                     byte2 = '{:08b}'.format(incoming_buffer[i])
                     binary = byte1 + byte2
                     value = int(binary, base=2)
+                    if value == 8224:
+                        break
                     if not synchronized:
                         if byte1 == '11011110': # 0xDE
                             if byte2 == '10101101': # 0xAD
@@ -195,7 +197,9 @@ class DaqConnection:
                             if block_offset >= n:
                                 # self.queue.put(readings) # TODO: define new queue that holds dictionaries
                                 self.sig.new_data.emit(readings)
+                                print(readings)
                                 readings = {} # clear readings before starting next block
+                                block_offset = 0
                                 # NOTE: block_offset will be reset when we hit another 0xDEAD
                             continue
 
@@ -270,7 +274,10 @@ class MyDynamicMplCanvas(MyMplCanvas):
             if not self.queue.empty():
                 readings = self.queue.get()
                 for channel in readings.keys():
-                    to_plot[channel].append(readings[channel])
+                    if (to_plot.has_key(channel)):
+                        to_plot[channel].append(readings[channel])
+                    else:
+                        to_plot[channel] = [readings[channel]]
 
         for channel in to_plot.keys():
             self.axes.plot(range(len(to_plot[channel])), to_plot[channel])
