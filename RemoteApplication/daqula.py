@@ -7,6 +7,7 @@ import threading
 import Queue
 import time
 import random
+import control_signals_pb2
 from PyQt4 import QtGui, QtCore
 from numpy import arange, sin, pi
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
@@ -16,7 +17,7 @@ class CustomSignal(QtCore.QObject):
 
     connected = QtCore.pyqtSignal()
     disconnected = QtCore.pyqtSignal()
-    new_data = QtCore.pyqtSignal(float)
+    new_data = QtCore.pyqtSignal(dict)
 
 
 class DaqConnection:
@@ -30,31 +31,67 @@ class DaqConnection:
         self.sig.disconnected.connect(lambda: self.parentWindow.daqWidget.toggleConnectionButtons(self.connected))
         self.sig.new_data.connect(self.parentWindow.forward_to_plot)
         self.connected = False
-        self.server_address = ('localhost', 10001)
+        self.server_address = ('192.168.211.18X', 10001)
 
     def update_server_address(self, string):
         self.server_address = string, 10001
 
     def connect_to_server(self):
         # Create a TCP/IP socket
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # print('connecting to %s port %s' % self.server_address)
+        self.control_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.sock.connect(self.server_address)
+            self.control_sock.connect(self.server_address)
             self.connected = True
             self.sig.connected.emit()
+        except Exception, e:
+            print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
+            self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
+
+        startRequest = control_signals_pb2.StartRequest()
+        startRequest.port = 0
+        startRequest.channels = 0xffffffff # TODO: read from active_channels list
+        try:
+            self.control_sock.send(startRequest.SerializeToString())
+            handshake_buffer = bytearray(256)
+            self.control_sock.recv_into(handshake_buffer)
+            reply = control_signals_pb2.StartRequest()
+            reply.ParseFromString(handshake_buffer)
+            self.data_sock.connect(self.server_address[0], reply.port)
             self.receiver_thread = threading.Thread(target=self.listen_for_data)
             self.receiver_thread.daemon = True
             self.receiver_thread.start()
         except Exception, e:
             print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
-            self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
+            self.parentWindow.setStatusBarMessage("Unable to establish data stream on secondary port")
+            # data_port = self.read_initial_status()
+            # self.raw_data_address = self.server_address[0], data_port
+            # if self.raw_data_address[1] != None:
+            #     self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            #     self.data_sock.connect(self.raw_data_address)
+            #     self.receiver_thread = threading.Thread(target=self.listen_for_data)
+            #     self.receiver_thread.daemon = True
+            #     self.receiver_thread.start()
+            # else:
+            #     print("ERROR: Cannot acquire secondary socket information from server!")
 
     def disconnect_from_server(self):
-        if self.sock is not None:
-            self.sock.close()
+        if self.control_sock is not None:
+            self.control_sock.close()
             self.connected = False
             self.sig.disconnected.emit()
+
+    # def read_initial_status(self):
+    #     status_buffer = bytearray(b" " * 32)  # create "empty" buffer to store incoming data
+    #     self.control_sock.recv_into(status_buffer)
+    #     i = 0
+    #     while i + 1 < len(status_buffer) and status_buffer[i + 1] != b' ':
+    #         # convert each byte to binary strings
+    #         byte1 = '{:08b}'.format(status_buffer[i + 1])
+    #         byte2 = '{:08b}'.format(status_buffer[i])
+    #         binary = byte1 + byte2
+    #         value = int(binary, base=2)
+    #     return 10002 # raw data connection port
 
     # TCP Receiver thread
     # def listen_for_data(self):
@@ -97,9 +134,9 @@ class DaqConnection:
         block_offset = 0 # which reading we are currently expecting: 0 -> (n-1) **NOTE: DEAD and TS not counted
         n = 32 # number of channels, will be sent as a parameter
         while True:
-            if self.sock:
-                incoming_buffer = bytearray(b" " * 512)  # create "empty" buffer to store incoming data
-                self.sock.recv_into(incoming_buffer)
+            if self.data_sock: # TODO: dual-socket system
+                incoming_buffer = bytearray(b' ' * 512)  # create "empty" buffer to store incoming data
+                self.data_sock.recv_into(incoming_buffer)
                 i = 0
                 while i+1 < len(incoming_buffer) and incoming_buffer[i+1] != b' ':
                     # convert each byte to binary strings
@@ -107,6 +144,8 @@ class DaqConnection:
                     byte2 = '{:08b}'.format(incoming_buffer[i])
                     binary = byte1 + byte2
                     value = int(binary, base=2)
+                    if value == 8224:
+                        break
                     if not synchronized:
                         if byte1 == '11011110': # 0xDE
                             if byte2 == '10101101': # 0xAD
@@ -153,7 +192,7 @@ class DaqConnection:
 
                     elif synchronized:
                         if value == 57005: # 0xDEAD
-                            if len(temp_buffer) >= (n + 2) and temp_buffer[-1 * (n + 2)]:
+                            if len(temp_buffer) >= (n + 2) and temp_buffer[-1 * (n + 2)] == 57005:
                                 # all good, still synced up
                                 temp_buffer = [value] # flush the buffer
                                 temp_buffer.append(0) # TODO: placeholder for timestamp
@@ -171,8 +210,12 @@ class DaqConnection:
                             i += 2
                             block_offset += 1
                             if block_offset >= n:
-                                write_to_queue(readings) # TODO: define new queue that holds dictionaries
+                                # self.queue.put(readings) # TODO: define new queue that holds dictionaries
+                                self.sig.new_data.emit(readings)
+                                print(readings)
                                 readings = {} # clear readings before starting next block
+                                block_offset = 0
+                                # NOTE: block_offset will be reset when we hit another 0xDEAD
                             continue
 
     def yield_data_point(self):
@@ -234,21 +277,25 @@ class MyDynamicMplCanvas(MyMplCanvas):
         MyMplCanvas.__init__(self, *args, **kwargs)
         timer = QtCore.QTimer(self)
         timer.timeout.connect(self.update_figure)
-        timer.start(1000)
+        timer.start(10000)
         self.queue = Queue.Queue()
 
     def compute_initial_figure(self):
         self.axes.plot([0, 1, 2, 3], [1, 2, 0, 4], 'r')
 
     def update_figure(self):
-        # Build a list of 4 random integers between 0 and 10 (both inclusive)
-        # l = [random.randint(0, 10) for i in range(4)]
-        l = []
+        to_plot = {}
         for i in range(10):
             if not self.queue.empty():
-                l.append(self.queue.get())
+                readings = self.queue.get()
+                for channel in readings.keys():
+                    if (to_plot.has_key(channel)):
+                        to_plot[channel].append(readings[channel])
+                    else:
+                        to_plot[channel] = [readings[channel]]
 
-        self.axes.plot(range(len(l)), l, 'r')
+        for channel in to_plot.keys():
+            self.axes.plot(range(len(to_plot[channel])), to_plot[channel])
         self.draw()
 
     def add_to_queue(self, datum):
