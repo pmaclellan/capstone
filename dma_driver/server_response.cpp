@@ -10,8 +10,8 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 
-#define CTRLPORT 10002
-#define DATAPORT 10001
+#define CTRLPORT 10001
+#define DATAPORT 10002
 #define BACKLOG 5
 
 void error(const char *msg)
@@ -51,11 +51,7 @@ int main()
     memset(&server, 0, sizeof(server));
     memset(&dest, 0, sizeof(dest));
     server.sin_family = AF_INET;
-<<<<<<< HEAD
     server.sin_port = htons(CTRLPORT);
-=======
-    server.sin_port = htons(PORT2);
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     server.sin_addr.s_addr = INADDR_ANY; 
     if (bind(socket_fd[0], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
@@ -74,22 +70,14 @@ int main()
     memset(&server, 0, sizeof(server));
     memset(&dest, 0, sizeof(dest));
     server.sin_family = AF_INET;
-<<<<<<< HEAD
     server.sin_port = htons(DATAPORT);
-=======
-    server.sin_port = htons(PORT1);
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     server.sin_addr.s_addr = INADDR_ANY; 
     if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
 	error("ERROR binding failure");
     }
-<<<<<<< HEAD
 
     // Listen for control socket
-=======
-/*
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     if (listen(socket_fd[0], BACKLOG) < 0)
     {
 	error("ERROR listening failure");
@@ -111,13 +99,8 @@ int main()
 	close(client_fd[0]);
 	return -1;
     }
-<<<<<<< HEAD
 
     // Listen on data socket for client to connect
-=======
-*/
-    //Listen on data socket for client to connect
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     if (listen(socket_fd[1], BACKLOG) < 0)
     {
 	error("ERROR listening failure");
