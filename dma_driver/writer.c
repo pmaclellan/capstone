@@ -53,7 +53,7 @@ int main (int argc, char* argv[])
     void* ptrs[REGISTER_COUNT];
     for(i = 0; i < REGISTER_COUNT; i++)
     {
-        gpio_addr = strtoul("80000",NULL, 0);
+        gpio_addr = 80000;
         page_addr = (gpio_addr & (~(page_size-1)));
         page_offsets[i] = gpio_addr - page_addr;
         printf("gpio_addr=%d, page_addr=%d, page_size=%d, page_offsets[i]=%d\n", gpio_addr, page_addr, page_size, page_offsets[i]);
@@ -97,10 +97,6 @@ int main (int argc, char* argv[])
             values[adc2] = (uint16_t)((MASK_ADC2 & value) >> 16);
             values[adc3] = (uint16_t)(MASK_ADC3 & value);
 
-            // Write data to fifo
-            write(fifoFd, &value, sizeof(values));
-            close(fifoFd);
-
             // Increment counters
             adc0++;
             adc1++;
@@ -114,13 +110,13 @@ int main (int argc, char* argv[])
         fifoFd = open(dmaFifoPath, O_WRONLY);
         while(i < VALUES_SIZE)
         {
-            write(fifoFd, &values[i], sizeof(uint16_t));
+            printf("values[%d]=%d\n", i, values[i]);
+            uint16_t value = values[i];
+            write(fifoFd, &value, sizeof(uint16_t));
             i++;
         }
+
         close(fifoFd);
-
-
-        sleep(1);
     }
 
     for (i = 0; i < REGISTER_COUNT; i++)
