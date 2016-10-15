@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='control_signals.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x15\x63ontrol_signals.proto\".\n\x0cStartRequest\x12\x0c\n\x04port\x18\x01 \x01(\r\x12\x10\n\x08\x63hannels\x18\x02 \x01(\r\"\x1b\n\x0bStopRequest\x12\x0c\n\x04port\x18\x01 \x01(\r\"!\n\x11SampleRateRequest\x12\x0c\n\x04rate\x18\x01 \x01(\r\"j\n\x12SensitivityRequest\x12,\n\x07voltage\x18\x01 \x01(\x0e\x32\x1b.SensitivityRequest.Voltage\"&\n\x07Voltage\x12\x08\n\x04\x46IVE\x10\x00\x12\x07\n\x03TEN\x10\x01\x12\x08\n\x04VREF\x10\x02\x62\x06proto3')
+  serialized_pb=_b('\n\x15\x63ontrol_signals.proto\".\n\x0cStartRequest\x12\x0c\n\x04port\x18\x01 \x01(\r\x12\x10\n\x08\x63hannels\x18\x02 \x01(\r\"-\n\x0bStopRequest\x12\x0c\n\x04port\x18\x01 \x01(\r\x12\x10\n\x08\x63hannels\x18\x02 \x01(\r\"!\n\x11SampleRateRequest\x12\x0c\n\x04rate\x18\x01 \x01(\r\"j\n\x12SensitivityRequest\x12,\n\x07voltage\x18\x01 \x01(\x0e\x32\x1b.SensitivityRequest.Voltage\"&\n\x07Voltage\x12\x08\n\x04\x46IVE\x10\x00\x12\x07\n\x03TEN\x10\x01\x12\x08\n\x04VREF\x10\x02\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -46,8 +46,8 @@ _SENSITIVITYREQUEST_VOLTAGE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   options=None,
-  serialized_start=205,
-  serialized_end=243,
+  serialized_start=223,
+  serialized_end=261,
 )
 _sym_db.RegisterEnumDescriptor(_SENSITIVITYREQUEST_VOLTAGE)
 
@@ -104,6 +104,13 @@ _STOPREQUEST = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
+    _descriptor.FieldDescriptor(
+      name='channels', full_name='StopRequest.channels', index=1,
+      number=2, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
   ],
   extensions=[
   ],
@@ -117,7 +124,7 @@ _STOPREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=73,
-  serialized_end=100,
+  serialized_end=118,
 )
 
 
@@ -147,8 +154,8 @@ _SAMPLERATEREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=102,
-  serialized_end=135,
+  serialized_start=120,
+  serialized_end=153,
 )
 
 
@@ -179,8 +186,8 @@ _SENSITIVITYREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=137,
-  serialized_end=243,
+  serialized_start=155,
+  serialized_end=261,
 )
 
 _SENSITIVITYREQUEST.fields_by_name['voltage'].enum_type = _SENSITIVITYREQUEST_VOLTAGE
