@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include "control_signals.pb.h"
 
 #define CTRLPORT 10001
 #define DATAPORT 10002
@@ -30,7 +31,8 @@ int main()
     uint64_t adc2_channels[8];
     uint64_t adc3_channels[8];
 
-    int data_port = 10002;
+    int data_port;
+    uint16_t start;
     
     struct sockaddr_in server;
     struct sockaddr_in dest;
@@ -91,6 +93,16 @@ int main()
 	error("ERROR acception failure");
     }
     printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+
+    // Read start request, active channels
+    if (recv(socket_fd[0], &start, sizeof(start), 0) < 0)
+    {
+	error("ERROR reading failure");
+    }
+    if (recv(socket_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
+    {
+	error("ERROR reading failure");
+    }
 
     // Send port number of streaming socket over control socket
     if (send(client_fd[0], &data_port, sizeof(data_port), 0) < 0)
