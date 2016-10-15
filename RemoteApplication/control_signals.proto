@@ -7,6 +7,7 @@ message StartRequest {
 
 message StopRequest {
 	uint32 port = 1;
+	uint32 channels = 2;
 }
 
 message SampleRateRequest {
