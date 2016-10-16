@@ -9,9 +9,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include "control_signals.pb.h"
 
-#define CTRLPORT 10002
-#define DATAPORT 10001
+#define CTRLPORT 10001
+#define DATAPORT 10002
 #define BACKLOG 5
 
 void error(const char *msg)
@@ -30,7 +31,8 @@ int main()
     uint64_t adc2_channels[8];
     uint64_t adc3_channels[8];
 
-    int data_port = 10002;
+    int data_port;
+    uint16_t start;
     
     struct sockaddr_in server;
     struct sockaddr_in dest;
@@ -51,11 +53,7 @@ int main()
     memset(&server, 0, sizeof(server));
     memset(&dest, 0, sizeof(dest));
     server.sin_family = AF_INET;
-<<<<<<< HEAD
     server.sin_port = htons(CTRLPORT);
-=======
-    server.sin_port = htons(PORT2);
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     server.sin_addr.s_addr = INADDR_ANY; 
     if (bind(socket_fd[0], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
@@ -74,22 +72,14 @@ int main()
     memset(&server, 0, sizeof(server));
     memset(&dest, 0, sizeof(dest));
     server.sin_family = AF_INET;
-<<<<<<< HEAD
     server.sin_port = htons(DATAPORT);
-=======
-    server.sin_port = htons(PORT1);
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     server.sin_addr.s_addr = INADDR_ANY; 
     if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
 	error("ERROR binding failure");
     }
-<<<<<<< HEAD
 
     // Listen for control socket
-=======
-/*
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     if (listen(socket_fd[0], BACKLOG) < 0)
     {
 	error("ERROR listening failure");
@@ -104,6 +94,16 @@ int main()
     }
     printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
+    // Read start request, active channels
+    if (recv(socket_fd[0], &start, sizeof(start), 0) < 0)
+    {
+	error("ERROR reading failure");
+    }
+    if (recv(socket_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
+    {
+	error("ERROR reading failure");
+    }
+
     // Send port number of streaming socket over control socket
     if (send(client_fd[0], &data_port, sizeof(data_port), 0) < 0)
     {
@@ -111,13 +111,8 @@ int main()
 	close(client_fd[0]);
 	return -1;
     }
-<<<<<<< HEAD
 
     // Listen on data socket for client to connect
-=======
-*/
-    //Listen on data socket for client to connect
->>>>>>> 8cc47a72b6e05451692837dbd5d2b7686fbc6fd3
     if (listen(socket_fd[1], BACKLOG) < 0)
     {
 	error("ERROR listening failure");
