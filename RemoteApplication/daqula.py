@@ -34,7 +34,11 @@ class MainWindow(QtGui.QMainWindow):
         self.daqWidget.dc.add_to_queue(datum)
 
     def updateActiveChannels(self, state):
-        print(state)
+        sender = self.sender()
+        if state == QtCore.Qt.Checked:
+            self.daq.processChannelUpdate(sender, True)
+        else:
+            self.daq.processChannelUpdate(sender, False)
 
 class MyMplCanvas(FigureCanvas):
     """Ultimately, this is a QWidget (as well as a FigureCanvasAgg, etc.)."""

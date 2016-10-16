@@ -1,5 +1,6 @@
 import Queue
 import socket
+import bisect
 
 import custom_signals
 import control_signals_pb2
@@ -16,9 +17,31 @@ class DaqConnection:
         self.sig.new_data.connect(self.parentWindow.forward_to_plot)
         self.connected = False
         self.server_address = ('192.168.211.18X', 10001)
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3',
+                                '1.0', '1.1', '1.2', '1.3',
+                                '2.0', '2.1', '2.2', '2.3',
+                                '3.0', '3.1', '3.2', '3.3',
+                                '4.0', '4.1', '4.2', '4.3',
+                                '5.0', '5.1', '5.2', '5.3',
+                                '6.0', '6.1', '6.2', '6.3',
+                                '7.0', '7.1', '7.2', '7.3']
 
     def update_server_address(self, string):
         self.server_address = string, 10001
+
+    def processChannelUpdate(self, sender, checked):
+        if checked:
+            if sender.text() not in self.active_channels:
+                bisect.insort(self.active_channels, str(sender.text()))
+        else:
+            if sender.text() in self.active_channels:
+                self.active_channels.remove(sender.text())
+
+        print(self.active_channels)
+        # TODO: send Start/StopRequest messages
+        # self.generateChannelBitmask()
+        # send message with bitmask and port
+
 
     def connect_to_server(self):
         # Create a TCP/IP socket
@@ -60,19 +83,11 @@ class DaqConnection:
         temp_buffer = []
         temp_byte = '00000000'
         readings = {}
-        #TODO: read active channels upon connecting to server
-        active_channels = ['0.0', '0.1', '0.2', '0.3',
-                           '1.0', '1.1', '1.2', '1.3',
-                           '2.0', '2.1', '2.2', '2.3',
-                           '3.0', '3.1', '3.2', '3.3',
-                           '4.0', '4.1', '4.2', '4.3',
-                           '5.0', '5.1', '5.2', '5.3',
-                           '6.0', '6.1', '6.2', '6.3',
-                           '7.0', '7.1', '7.2', '7.3']
         block_offset = 0 # which reading we are currently expecting: 0 -> (n-1) **NOTE: DEAD and TS not counted
-        n = 32 # number of channels, will be sent as a parameter
+
         while True:
             if self.data_sock: # TODO: dual-socket system
+                n = len(self.active_channels)  # number of channels
                 incoming_buffer = bytearray(b' ' * 512)  # create "empty" buffer to store incoming data
                 self.data_sock.recv_into(incoming_buffer)
                 i = 0
@@ -144,7 +159,7 @@ class DaqConnection:
                                 i += 2
                                 continue
                         else:
-                            readings[active_channels[block_offset]] = value
+                            readings[self.active_channels[block_offset]] = value
                             i += 2
                             block_offset += 1
                             if block_offset >= n:
