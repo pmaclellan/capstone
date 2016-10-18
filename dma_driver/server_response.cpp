@@ -23,6 +23,10 @@ void error(const char *msg)
 
 int main()
 {
+    GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+    StartRequest start_request = StartRequest();
+
     int fd, active_channels;
     const char * myfifo = "/tmp/dma-fifo";
     uint16_t deadhead, timestamp, buf;
@@ -32,7 +36,7 @@ int main()
     uint64_t adc3_channels[8];
 
     int data_port;
-    uint16_t start;
+    uint32_t start;
     
     struct sockaddr_in server;
     struct sockaddr_in dest;
@@ -60,25 +64,6 @@ int main()
 	error("ERROR binding failure");
     }
 
-    // Set up socket 1 for streaming data
-    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
-    {
-	error("ERROR socket failure");
-    }
-    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
-    {
-	error("ERROR setsockopt");
-    }
-    memset(&server, 0, sizeof(server));
-    memset(&dest, 0, sizeof(dest));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(DATAPORT);
-    server.sin_addr.s_addr = INADDR_ANY; 
-    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
-    { 
-	error("ERROR binding failure");
-    }
-
     // Listen for control socket
     if (listen(socket_fd[0], BACKLOG) < 0)
     {
@@ -99,11 +84,33 @@ int main()
     {
 	error("ERROR reading failure");
     }
+    start_request.set_port(start);
     if (recv(socket_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
     {
 	error("ERROR reading failure");
     }
+    start_request.set_channels(active_channels);
 
+    
+    // Set up socket 1 for streaming data
+    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    {
+	error("ERROR socket failure");
+    }
+    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
+    {
+	error("ERROR setsockopt");
+    }
+    memset(&server, 0, sizeof(server));
+    memset(&dest, 0, sizeof(dest));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(start_request.port());
+    server.sin_addr.s_addr = INADDR_ANY; 
+    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
+    { 
+	error("ERROR binding failure");
+    }
+/*
     // Send port number of streaming socket over control socket
     if (send(client_fd[0], &data_port, sizeof(data_port), 0) < 0)
     {
@@ -111,7 +118,7 @@ int main()
 	close(client_fd[0]);
 	return -1;
     }
-
+*/
     // Listen on data socket for client to connect
     if (listen(socket_fd[1], BACKLOG) < 0)
     {
