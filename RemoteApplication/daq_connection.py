@@ -2,6 +2,7 @@ import Queue
 import socket
 import bisect
 import numpy as np
+import threading
 
 import custom_signals
 import control_signals_pb2
@@ -23,6 +24,7 @@ class DaqConnection:
                                 '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
                                 '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
                                 '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7',]
+        self.channel_mask = self.generateChannelBitMask()
 
     def update_server_address(self, string):
         self.server_address = string, 10001
@@ -36,7 +38,6 @@ class DaqConnection:
                 self.active_channels.remove(sender.text())
 
         print(self.active_channels)
-        # TODO: send Start/StopRequest messages
         self.channel_mask = self.generateChannelBitMask()
         print(self.channel_mask)
         # TODO: find a way to check if socket is still open
@@ -44,15 +45,14 @@ class DaqConnection:
             startRequest = control_signals_pb2.StartRequest()
             startRequest.port = self.data_port
             startRequest.channels = self.channel_mask
-            # if self.control_sock:
-            #     self.control_sock.send(startRequest.SerializeToString())
+            if self.connected:
+                self.control_sock.send(startRequest.SerializeToString())
         else:
             stopRequest = control_signals_pb2.StopRequest()
             stopRequest.port = self.data_port
             stopRequest.channels = self.channel_mask
-            # if self.control_sock:
-            #     self.control_sock.send(stopRequest.SerializeToString())
-        # send message with bitmask and port
+            if self.connected:
+                self.control_sock.send(stopRequest.SerializeToString())
 
     def generateChannelBitMask(self):
         bit_mask = np.uint32(0)
@@ -83,7 +83,7 @@ class DaqConnection:
 
         startRequest = control_signals_pb2.StartRequest()
         startRequest.port = 0
-        startRequest.channels = 0xffffffff # TODO: read from active_channels list
+        startRequest.channels = self.channel_mask
         try:
             self.control_sock.send(startRequest.SerializeToString())
             handshake_buffer = bytearray(256)
