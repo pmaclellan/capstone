@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+//package Controls;
+
+message StartRequest {
+	uint32 port = 1;
+	uint32 channels = 2;
+}
+
+message StopRequest {
+	uint32 port = 1;
+}
+
+message SampleRateRequest {
+	int32 rate = 1;
+}
+
+message SensitivityRequest {
+	enum Voltage {
+		FIVE = 0;
+		TEN = 1;
+		VREF = 2;
+	}
+	Voltage voltage = 1;
+}
