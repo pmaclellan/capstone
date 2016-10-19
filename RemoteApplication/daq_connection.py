@@ -92,7 +92,13 @@ class DaqConnection:
         reply = control_signals_pb2.StartRequest()
 
         try:
-            msg_len = self.control_sock.recv(2)
+            # receive message length and parse as uint16
+            msg_len_raw = bytearray(2)
+            self.control_sock.recv_into(msg_len_raw)
+            byte1 = '{:08b}'.format(msg_len_raw[1])
+            byte2 = '{:08b}'.format(msg_len_raw[0])
+            binary = byte1 + byte2
+            msg_len = int(binary, base=2)
             handshake_buffer = bytearray(msg_len)
             self.control_sock.recv_into(handshake_buffer)
             reply.ParseFromString(handshake_buffer)
