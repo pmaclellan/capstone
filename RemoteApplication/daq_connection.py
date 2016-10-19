@@ -97,11 +97,12 @@ class DaqConnection:
             self.control_sock.recv_into(handshake_buffer)
             reply.ParseFromString(handshake_buffer)
             self.data_port = reply.port
+            print("data port from server is %d" % self.data_port)
         except Exception, e:
             print("Unable to parse server response. Exception is %s" % e)
 
         try:
-            self.data_sock.connect(self.server_address[0], self.data_port)
+            self.data_sock.connect((self.server_address[0], self.data_port))
             self.receiver_thread = threading.Thread(target=self.listen_for_data)
             self.receiver_thread.daemon = True
             self.receiver_thread.start()
