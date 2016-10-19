@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include "control_signals.pb.h"
+#include <google/protobuf/text_format.h>
+#include <iostream>
 
 #define CTRLPORT 10001
 #define DATAPORT 10002
@@ -35,8 +37,9 @@ int main()
     uint64_t adc2_channels[8];
     uint64_t adc3_channels[8];
 
-    int data_port;
-    uint32_t start;
+    int data_port = 10002;
+    std::string start;
+    std::string ackString;
     
     struct sockaddr_in server;
     struct sockaddr_in dest;
@@ -64,6 +67,25 @@ int main()
 	error("ERROR binding failure");
     }
 
+    // Set up socket 1 for streaming data
+    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    {
+	error("ERROR socket failure");
+    }
+    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
+    {
+	error("ERROR setsockopt");
+    }
+    memset(&server, 0, sizeof(server));
+    memset(&dest, 0, sizeof(dest));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(DATAPORT);
+    server.sin_addr.s_addr = INADDR_ANY; 
+    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
+    { 
+	error("ERROR binding failure");
+    }
+
     // Listen for control socket
     if (listen(socket_fd[0], BACKLOG) < 0)
     {
@@ -80,45 +102,38 @@ int main()
     printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
     // Read start request, active channels
-    if (recv(socket_fd[0], &start, sizeof(start), 0) < 0)
+    if (recv(client_fd[0], &start, 256, 0) < 0)
     {
 	error("ERROR reading failure");
     }
-    start_request.set_port(start);
-    if (recv(socket_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
-    {
-	error("ERROR reading failure");
-    }
-    start_request.set_channels(active_channels);
 
-    
-    // Set up socket 1 for streaming data
-    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    printf("Read success\n");
+    //std::cout<<start<<std::endl;
+    //printf("Read from file success: %s\n", start.c_str());
+    //std::string start = start.ToString();
+    google::protobuf::TextFormat::ParseFromString(start, &start_request);
+    printf("Parsed\n");
+    //start = start_request.port();
+    //printf("PORT: %s\n", start);
+    active_channels = start_request.channels();
+    //printf("Channels: %s\n", active_channels);
+    /*if (recv(client_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
     {
-	error("ERROR socket failure");
+	error("ERROR reading failure");
     }
-    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
-    {
-	error("ERROR setsockopt");
-    }
-    memset(&server, 0, sizeof(server));
-    memset(&dest, 0, sizeof(dest));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(start_request.port());
-    server.sin_addr.s_addr = INADDR_ANY; 
-    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
-    { 
-	error("ERROR binding failure");
-    }
-/*
+    start_request.set_channels(active_channels);*/
+
     // Send port number of streaming socket over control socket
-    if (send(client_fd[0], &data_port, sizeof(data_port), 0) < 0)
+    start_request.set_port(data_port);
+    start_request.SerializeToString(&ackString);
+    if (send(client_fd[0], &ackString, sizeof(ackString), 0) < 0)
     {
 	fprintf(stderr, "Failure Sending Messages\n");
 	close(client_fd[0]);
 	return -1;
     }
-*/
+    printf("Sent port number back to client\n");
+
     // Listen on data socket for client to connect
     if (listen(socket_fd[1], BACKLOG) < 0)
     {
@@ -127,7 +142,8 @@ int main()
 
     size = sizeof(struct sockaddr_in);  
 	
-    // Conect to client over data socket
+    printf("Listened\n");
+    // Connect to client over data socket
     if ((client_fd[1] = accept(socket_fd[1], (struct sockaddr *)&dest, &size)) < 0) 
     {
         error("ERROR acception failure");
