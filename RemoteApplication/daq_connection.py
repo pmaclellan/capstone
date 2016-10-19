@@ -86,12 +86,22 @@ class DaqConnection:
         startRequest.channels = self.channel_mask
         try:
             self.control_sock.send(startRequest.SerializeToString())
-            handshake_buffer = bytearray(256)
+        except Exception, e:
+            print("Unable to send StartRequest. Exception is %s" % e)
+
+        reply = control_signals_pb2.StartRequest()
+
+        try:
+            msg_len = self.control_sock.recv(2)
+            handshake_buffer = bytearray(msg_len)
             self.control_sock.recv_into(handshake_buffer)
-            reply = control_signals_pb2.StartRequest()
             reply.ParseFromString(handshake_buffer)
             self.data_port = reply.port
-            self.data_sock.connect(self.server_address[0], reply.port)
+        except Exception, e:
+            print("Unable to parse server response. Exception is %s" % e)
+
+        try:
+            self.data_sock.connect(self.server_address[0], self.data_port)
             self.receiver_thread = threading.Thread(target=self.listen_for_data)
             self.receiver_thread.daemon = True
             self.receiver_thread.start()
