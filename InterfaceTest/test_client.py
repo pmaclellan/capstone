@@ -4,7 +4,13 @@ import sys
 import time
 
 server_addr = 'localhost'
-control_port = 50000
+control_port = 5000
+
+# Helper Function
+def _delay(seconds):
+	for i in range(seconds):
+		time.sleep(1)
+		print '...'
 
 # Create a TCP socket object
 controlSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -12,13 +18,6 @@ controlSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 # Connect to localhost server
 controlSock.connect((server_addr, control_port))
 print('Connected to server at %s:%d' % (server_addr, control_port))
-
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
 
 # Construct a PbStartRequest object (protobuf)
 pbStartRequest = control_signals_pb2.StartRequest()
@@ -32,23 +31,9 @@ serialized = pbStartRequest.SerializeToString()
 controlSock.send(str(sys.getsizeof(serialized)))
 print('sent size %d' % sys.getsizeof(serialized))
 
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
-
 # Send the serialized protobuf message
 controlSock.send(serialized)
 print('sent message payload %s' % serialized)
-
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
-time.sleep(1)
-print '...'
 
 # Receive the response from server in two parts:
 # 1) length of incoming transmission
@@ -70,8 +55,14 @@ data_port = pbStartRequest.port
 
 # Create a second TCP socket for the data connection
 dataSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+print('CONN: attempting conection to %s:%d' % (server_addr, data_port))
 dataSock.connect((server_addr, data_port))
 
 # Start the listener thread
 print('Reday to receive raw data stream.')
+
+while True:
+	data = dataSock.recv(2)
+	if data != '':
+		print(data)
 
