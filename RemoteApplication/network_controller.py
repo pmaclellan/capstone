@@ -1,6 +1,7 @@
 import socket
 import multiprocessing
 import threading
+import control_signals_pb2
 
 class NetworkController():
     def __init__(self, storage_queue, gui_queue):
@@ -29,7 +30,15 @@ class NetworkController():
         self.gui_receiver_thread.start()
 
     def recv_from_gui(self):
+        expected_requests = (control_signals_pb2.StartRequest,
+                             control_signals_pb2.StopRequest,
+                             control_signals_pb2.SampleRateRequest,
+                             control_signals_pb2.SensitivityRequest)
         while True:
             if not self.gui_queue.empty():
-                x = self.gui_queue.get_nowait()
-                print x
+                request = self.gui_queue.get_nowait()
+                if type(request) not in expected_requests:
+                    raise TypeError('unexpected object in queue from gui, Type: %s' % type(request))
+                else:
+                    # TODO: send request over socket
+                    print request
