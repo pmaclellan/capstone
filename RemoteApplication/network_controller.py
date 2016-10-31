@@ -1,5 +1,6 @@
 import socket
 import multiprocessing
+import threading
 
 class NetworkController():
     def __init__(self, storage_queue, gui_queue):
@@ -22,3 +23,13 @@ class NetworkController():
         # sent_dict will hold request messages that have been sent over the
         # control_socket but have not yet been ACKed
         self.sent_dict = {}
+
+        self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
+        self.gui_receiver_thread.daemon = True
+        self.gui_receiver_thread.start()
+
+    def recv_from_gui(self):
+        while True:
+            if not self.gui_queue.empty():
+                x = self.gui_queue.get_nowait()
+                print x
