@@ -20,4 +20,3 @@ class StorageController():
         while True:
             if not self.incoming_buf.empty():
                 reading = self.incoming_buf.get()
-                print reading
