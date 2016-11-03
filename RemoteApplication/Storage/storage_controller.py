@@ -17,16 +17,22 @@ class StorageController():
 
     def writefiles(self):
         timeout_threshold = 1000
+        write_buffer = []
 
         while True:
             filename = time.strftime('%Y%m%d-%H:%M:%S')+'.h5'
             f = h5py.File(filename, 'x')
             timeout_counter = 0
+            i = 0
             while timeout_counter < timeout_threshold:
                 if not self.write_buffer.empty():
                     timeout_counter = 0
                     reading = self.write_buffer.get_nowait()
-                    # TODO: write reading to HDF file
+                    write_buffer.append(reading)
+                    if len(write_buffer) > 200:
+                        f.create_dataset(str(i), data=write_buffer)
+                        write_buffer = []
+                        i += 1
                     if os.path.getsize(filename) > 1000:
                         print 'file size %d exceeds limit, closing and starting new file' \
                               % os.path.getsize(filename)

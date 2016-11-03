@@ -3,6 +3,7 @@ from storage_controller import StorageController
 import multiprocessing as mp
 import time
 import random
+import numpy as np
 import pytest
 import os.path
 from subprocess import call
@@ -83,16 +84,25 @@ def test_writefiles_short_burst():
     expected_filename = time.strftime('%Y%m%d-%H:%M:%S') + '.h5'
 
     for i in range(1000):
-        reading = {('TS', random.random() * 15),
-                   ('0.0', random.randrange(0, 0xffffffff)),
-                   ('0.1', random.randrange(0, 0xffffffff)),
-                   ('0.2', random.randrange(0, 0xffffffff)),
-                   ('0.3', random.randrange(0, 0xffffffff)),
-                   ('1.0', random.randrange(0, 0xffffffff)),
-                   ('1.1', random.randrange(0, 0xffffffff)),
-                   ('1.2', random.randrange(0, 0xffffffff)),
-                   ('1.3', random.randrange(0, 0xffffffff)),
-                   }
+        # reading = {('TS', random.random() * 15),
+        #            ('0.0', random.randrange(0, 0xffffffff)),
+        #            ('0.1', random.randrange(0, 0xffffffff)),
+        #            ('0.2', random.randrange(0, 0xffffffff)),
+        #            ('0.3', random.randrange(0, 0xffffffff)),
+        #            ('1.0', random.randrange(0, 0xffffffff)),
+        #            ('1.1', random.randrange(0, 0xffffffff)),
+        #            ('1.2', random.randrange(0, 0xffffffff)),
+        #            ('1.3', random.randrange(0, 0xffffffff)),
+        #            }
+        reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+                            ('0.1', random.randrange(0, 0xffffffff)),
+                            ('0.2', random.randrange(0, 0xffffffff)),
+                            ('0.3', random.randrange(0, 0xffffffff)),
+                            ('1.0', random.randrange(0, 0xffffffff)),
+                            ('1.1', random.randrange(0, 0xffffffff)),
+                            ('1.2', random.randrange(0, 0xffffffff)),
+                            ('1.3', random.randrange(0, 0xffffffff))],
+                 dtype=[('channel', 'S3'), ('value', 'i2')])
         ingoing_buffer.put(reading)
 
     time.sleep(1)
