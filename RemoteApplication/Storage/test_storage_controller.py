@@ -6,7 +6,8 @@ import random
 import numpy as np
 import pytest
 import os.path
-from subprocess import call
+import glob
+import subprocess
 
 def test_grabbuffer_single():
     # StorageController should automatically consume data from the ingoing_buffer
@@ -28,7 +29,8 @@ def test_grabbuffer_single():
     assert ingoing_buffer.empty()
 
     # cleanup
-    call(['rm', expected_filename])
+    print 'test done, removing files'
+    subprocess.call(['rm', expected_filename])
 
 def test_grabbuffer_short_burst():
     # StorageController should automatically consume data from the ingoing_buffer
@@ -47,10 +49,11 @@ def test_grabbuffer_short_burst():
                             ('1.3', random.randrange(0, 0xffffffff))],
                            dtype=[('channel', 'S3'), ('value', 'i2')])
         ingoing_buffer.put(reading)
-    time.sleep(0.1)
+    time.sleep(0.5)
     assert ingoing_buffer.empty()
     # cleanup
-    call(['rm', expected_filename])
+    print 'test done, removing files'
+    subprocess.call(['rm', expected_filename])
 
 def test_writefiles_file_created():
     # StorageController should ???
@@ -72,7 +75,8 @@ def test_writefiles_file_created():
     time.sleep(0.1)
     assert os.path.isfile(expected_filename)
     # cleanup
-    call(['rm', expected_filename])
+    print 'test done, removing files'
+    subprocess.call(['rm', expected_filename])
 
 def test_writefiles_short_burst():
     # StorageController should ???
@@ -105,7 +109,31 @@ def test_writefiles_short_burst():
     time.sleep(2)
     assert sc.write_buffer.empty()
     # cleanup
-    call(['rm', expected_filename])
+    print 'test done, removing files'
+    subprocess.call(['rm', expected_filename])
+
+def test_writefiles_mult_files():
+    ingoing_buffer = mp.Queue()
+    sc = StorageController(ingoing_buffer)
+    expected_filename = time.strftime('%Y%m%d') + '*'
+
+    for i in range(10000):
+        reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+                            ('0.1', random.randrange(0, 0xffffffff)),
+                            ('0.2', random.randrange(0, 0xffffffff)),
+                            ('0.3', random.randrange(0, 0xffffffff)),
+                            ('1.0', random.randrange(0, 0xffffffff)),
+                            ('1.1', random.randrange(0, 0xffffffff)),
+                            ('1.2', random.randrange(0, 0xffffffff)),
+                            ('1.3', random.randrange(0, 0xffffffff))],
+                           dtype=[('channel', 'S3'), ('value', 'i2')])
+        ingoing_buffer.put(reading)
+
+    time.sleep(8)
+    assert sc.write_buffer.empty()
+    assert len(glob.glob(expected_filename)) > 1
+    # cleanup
+    subprocess.Popen('rm ' + expected_filename, shell=True)
 
 @pytest.mark.skip(reason="not implemented yet")
 def test_channel_change():
