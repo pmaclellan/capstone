@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+//package Controls;
+
 message StartRequest {
 	uint32 port = 1;
 	uint32 channels = 2;
@@ -7,11 +9,10 @@ message StartRequest {
 
 message StopRequest {
 	uint32 port = 1;
-	uint32 channels = 2;
 }
 
 message SampleRateRequest {
-	uint32 rate = 1;
+	int32 rate = 1;
 }
 
 message SensitivityRequest {
@@ -21,14 +22,4 @@ message SensitivityRequest {
 		VREF = 2;
 	}
 	Voltage voltage = 1;
-}
-
-message RequestWrapper {
-	uint32 sequence = 1;
-	oneof msg {
-		StartRequest start = 2;
-		StopRequest stop = 3;
-		SampleRateRequest rate = 4;
-		SensitivityRequest sens = 5;
-	}
 }

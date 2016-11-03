@@ -1,5 +1,9 @@
 import Queue
 import socket
+import bisect
+import numpy as np
+import threading
+import sys
 
 import custom_signals
 import control_signals_pb2
@@ -15,39 +19,116 @@ class DaqConnection:
         self.sig.disconnected.connect(lambda: self.parentWindow.daqWidget.toggleConnectionButtons(self.connected))
         self.sig.new_data.connect(self.parentWindow.forward_to_plot)
         self.connected = False
-        self.server_address = ('192.168.211.18X', 10001)
+        self.server_address = '192.168.211.18X'
+        self.control_port = 10001
+        self.data_port = 0
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                                '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
+                                '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
+                                '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7',]
+        self.channel_mask = self.generateChannelBitMask()
 
     def update_server_address(self, string):
-        self.server_address = string, 10001
+        self.server_address = string
+
+    def processChannelUpdate(self, sender, checked):
+        if checked:
+            if sender.text() not in self.active_channels:
+                bisect.insort(self.active_channels, str(sender.text()))
+        else:
+            if sender.text() in self.active_channels:
+                self.active_channels.remove(sender.text())
+
+        print(self.active_channels)
+        self.channel_mask = self.generateChannelBitMask()
+        print(self.channel_mask)
+        # TODO: find a way to check if socket is still open
+        if checked:
+            startRequest = control_signals_pb2.StartRequest()
+            startRequest.port = self.data_port
+            startRequest.channels = self.channel_mask
+            if self.connected:
+                self.control_sock.send(startRequest.SerializeToString())
+        else:
+            stopRequest = control_signals_pb2.StopRequest()
+            stopRequest.port = self.data_port
+            stopRequest.channels = self.channel_mask
+            if self.connected:
+                self.control_sock.send(stopRequest.SerializeToString())
+
+    def generateChannelBitMask(self):
+        bit_mask = np.uint32(0)
+        offset = 0
+        for i in range(4):
+            for j in range(8):
+                if (str(i) + '.' + str(j)) in self.active_channels:
+                    # bit_mask |= 0x01 << offset
+                    bit_mask = np.bitwise_or(bit_mask, np.left_shift(np.uint32(1), offset))
+                else:
+                    # bit_mask &= ~(0x01 << offset)
+                    bit_mask = np.bitwise_and(bit_mask, np.bitwise_not(np.left_shift(np.uint32(1), offset)))
+                offset += 1
+        return bit_mask
 
     def connect_to_server(self):
         # Create a TCP/IP socket
         self.control_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.control_sock.connect(self.server_address)
+            self.control_sock.connect((self.server_address, self.control_port))
             self.connected = True
             self.sig.connected.emit()
         except Exception, e:
-            print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
+            print("ERROR: Something's wrong with %s. Exception type is %s" % (self.server_address, e))
             self.parentWindow.setStatusBarMessage("Unable to connect to server at %s:%s" % self.server_address)
 
         startRequest = control_signals_pb2.StartRequest()
         startRequest.port = 0
-        startRequest.channels = 0xffffffff # TODO: read from active_channels list
+        startRequest.channels = 0xffffffff  # TODO: read from active_channels list
+        # serialize the constructed PbStartRequest for sending over the wire
+        serialized = startRequest.SerializeToString()
+        length = str(sys.getsizeof(serialized))
+        try:
+            # Send the transmission length to the server
+            self.control_sock.send(length)
+            print('SENT: size %d' % sys.getsizeof(serialized))
+        except Exception, e:
+            print('ERROR: failed to send msg length %s, exception is %s' % (length, e))
+
         try:
             self.control_sock.send(startRequest.SerializeToString())
-            handshake_buffer = bytearray(256)
-            self.control_sock.recv_into(handshake_buffer)
-            reply = control_signals_pb2.StartRequest()
-            reply.ParseFromString(handshake_buffer)
-            self.data_sock.connect(self.server_address[0], reply.port)
-            self.receiver_thread = threading.Thread(target=self.listen_for_data)
-            self.receiver_thread.daemon = True
-            self.receiver_thread.start()
+            print('SENT: serialized StartRequest message')
+        except Exception, e:
+            print('ERROR: failed to send serialized StartMessage, exception is %s' % e)
+
+        length = ''
+        while length == '':
+            length = self.control_sock.recv(2)
+
+        print('RECV: msg length will be %s' % length)
+
+        incoming_msg = self.control_sock.recv(int(length))
+
+        startRequestAck = control_signals_pb2.StartRequest()
+        try:
+            startRequestAck.ParseFromString(incoming_msg)
+            print('RECV: StartRequest ACK message')
+            print(startRequestAck)
+        except Exception, e:
+            print('ERROR: unable to parse into StartRequest, exception is %s' % e)
+
+        self.data_port = startRequestAck.port
+
+        try:
+            self.data_sock.connect((self.server_address, self.data_port))
         except Exception, e:
             print("Something's wrong with %s. Exception type is %s" % (self.server_address, e))
             self.parentWindow.setStatusBarMessage("Unable to establish data stream on secondary port")
+
+        # start up new thread to handle incoming raw data stream
+        self.receiver_thread = threading.Thread(target=self.listen_for_data)
+        self.receiver_thread.daemon = True
+        self.receiver_thread.start()
 
     def disconnect_from_server(self):
         if self.control_sock is not None:
@@ -60,19 +141,11 @@ class DaqConnection:
         temp_buffer = []
         temp_byte = '00000000'
         readings = {}
-        #TODO: read active channels upon connecting to server
-        active_channels = ['0.0', '0.1', '0.2', '0.3',
-                           '1.0', '1.1', '1.2', '1.3',
-                           '2.0', '2.1', '2.2', '2.3',
-                           '3.0', '3.1', '3.2', '3.3',
-                           '4.0', '4.1', '4.2', '4.3',
-                           '5.0', '5.1', '5.2', '5.3',
-                           '6.0', '6.1', '6.2', '6.3',
-                           '7.0', '7.1', '7.2', '7.3']
         block_offset = 0 # which reading we are currently expecting: 0 -> (n-1) **NOTE: DEAD and TS not counted
-        n = 32 # number of channels, will be sent as a parameter
+
         while True:
-            if self.data_sock: # TODO: dual-socket system
+            if self.data_sock:
+                n = len(self.active_channels)  # number of channels
                 incoming_buffer = bytearray(b' ' * 512)  # create "empty" buffer to store incoming data
                 self.data_sock.recv_into(incoming_buffer)
                 i = 0
@@ -144,7 +217,7 @@ class DaqConnection:
                                 i += 2
                                 continue
                         else:
-                            readings[active_channels[block_offset]] = value
+                            readings[self.active_channels[block_offset]] = value
                             i += 2
                             block_offset += 1
                             if block_offset >= n:
