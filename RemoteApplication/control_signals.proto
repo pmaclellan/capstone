@@ -22,3 +22,13 @@ message SensitivityRequest {
 	}
 	Voltage voltage = 1;
 }
+
+message RequestWrapper {
+	uint32 sequence = 1;
+	oneof msg {
+		StartRequest start = 2;
+		StopRequest stop = 3;
+		SampleRateRequest rate = 4;
+		SensitivityRequest sens = 5;
+	}
+}
