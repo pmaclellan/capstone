@@ -22,9 +22,6 @@ class ControlClient(asyncore.dispatcher):
         # control_socket but have not yet been ACKed
         self.sent_dict = {}
 
-        # sequence numbers are assigned to outgoing messages to correlate ACKs
-        self.sequence = 0
-
         self.host = host
         self.port = port
         self.connected = False
@@ -33,6 +30,11 @@ class ControlClient(asyncore.dispatcher):
         print 'attempting connection'
         self.connect((self.host, self.port))
         self.connected = True
+
+    def close_control_port(self):
+        print 'ControlClient: close_control_port()'
+        self.connected = False
+        self.close()
 
     def handle_connect(self):
         print 'handle_connect() entered'
@@ -69,28 +71,27 @@ class ControlClient(asyncore.dispatcher):
     def writable(self):
         # we want to write whenever there are messages to be sent
         is_writable = not self.outgoing_queue.empty()
-        print 'writable() -> %s' % is_writable
         return is_writable
 
     def handle_write(self):
         # grab request to be sent from the queue
-        request_wrapper = self.outgoing_queue.get_nowait()
-        print 'retrieved msg type: %s from queue' % type(request_wrapper)
+        serialized_req_wrap = self.outgoing_queue.get_nowait()
+        print 'handle_write() retrieved msg from outgoing queue'
 
-
-        serialized = request_wrapper.SerializeToString()
+        # parse the request for storage in sent_dict
+        request_wrapper = control_signals_pb2.RequestWrapper()
+        request_wrapper.ParseFromString(serialized_req_wrap)
 
         print 'sending message length over control socket'
-        self.send(str(sys.getsizeof(serialized)))
+        self.send(str(sys.getsizeof(serialized_req_wrap)))
         # TODO: sent as a uint16
 
         print 'sending Request message over control socket'
-        sent = self.send(serialized)
+        sent = self.send(serialized_req_wrap)
         print 'sent message bytes: %d' % sent
 
         print 'adding request %d to sent_dict' % request_wrapper.sequence
         self.sent_dict[request_wrapper.sequence] = request_wrapper
-        self.sequence += 1
 
 
 class NetworkController():
@@ -122,13 +123,20 @@ class NetworkController():
 
         # handle asyncore blocking loop in a separate thread
         # NOTE: lambda needed so loop() doesn't get called right away and block
-        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0))
+        # 1.0 sets the polling frequency (default=30.0)
+        # use_poll=True is a workaround to avoid "bad file descriptor" upon closing
+        # for python 2.7.X according to GitHub Issue...but it still gives the error
+        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0, use_poll=True))
 
     def connect_control_port(self):
         print 'connect_control_port() entered'
         if self.control_client is not None and not self.control_client.connected:
             self.control_client.connect_control_port()
             self.loop_thread.start()
+
+    def close_control_port(self):
+        self.control_client.close_control_port()
+        self.loop_thread.join()
 
     def recv_from_gui(self):
         while True:
@@ -141,7 +149,7 @@ class NetworkController():
                 print 'received wrapper %s' % requestWrapper
 
                 # just pass along to control client without modifying
-                self.outgoing_queue.put(requestWrapper)
+                self.outgoing_queue.put(serialized)
 
             elif not self.gui_queue.empty() and not self.control_client.connected:
                 self.gui_queue.get_nowait()

@@ -67,48 +67,60 @@ def test_mult_types_gui_queue_receiver():
     assert gui_queue.empty()
 
 
-# def test_control_socket_send_request():
-#     # stg_queue, gui_queue, nc = setup()
-#
-#     stg_queue = mp.Queue()
-#     gui_queue = mp.Queue()
-#     nc = NetworkController(stg_queue, gui_queue)
-#
-#     print 'trying to create a StartRequest'
-#     # simulate message from GUI
-#     startRequest = control_signals_pb2.StartRequest()
-#     startRequest.port = 0
-#     startRequest.channels = 0xDEADBEEF
-#     print type(startRequest)
-#     print startRequest
-#
-#     # load request into queue to be sent by ControlClient
-#     gui_queue.put(startRequest)
-#
-#     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     sock.bind(('localhost', 10001))
-#     sock.listen(1)
-#     print 'gui-queue empty from test side: %s' % gui_queue.empty()
-#
-#     nc.connect_control_port()
-#
-#     print 'listening on %s:%d' % ('localhost', 10001)
-#     conn, addr = sock.accept()
-#     print 'accepted connection from %s:%d' % (addr[0], addr[1])
-#     print 'gui-queue empty from test side: %s' % gui_queue.empty()
-#
-#     length = ''
-#     while length == '':
-#         length = conn.recv(2)
-#         print length
-#     print 'test received length header: %s' % length
-#     msg = conn.recv(int(length))
-#     reply = control_signals_pb2.RequestWrapper()
-#     reply.ParseFromString(msg)
-#     print 'test received request message:\n%s' % reply
-#
-#     assert reply.HasField('start')
-#     startMessage = reply.start
-#     assert startMessage is control_signals_pb2._STARTREQUEST
-#     assert startMessage.port == 0
-#     assert startMessage.channels == 0xDEADBEEF
+def test_control_socket_send_request():
+    stg_queue, gui_queue, nc = setup()
+
+    # Simulate message from GUI
+    # first construct the inner request
+    startRequest = control_signals_pb2.StartRequest()
+    startRequest.port = 10002
+    startRequest.channels = 0xDEADBEEF
+
+    # then insert it into a request wrapper
+    requestWrapper = control_signals_pb2.RequestWrapper()
+    requestWrapper.sequence = 1
+    requestWrapper.start.MergeFrom(startRequest)
+
+    # finally, serialize to send across boundary
+    serialized = requestWrapper.SerializeToString()
+
+    # setup a server socket to listen for control client connection
+    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_sock.bind(('localhost', 10001))
+    server_sock.listen(1)
+    print 'listening on %s:%d' % ('localhost', 10001)
+
+    # tell the network controller to attempt a connection to the server socket
+    nc.connect_control_port()
+
+    conn, addr = server_sock.accept()
+    print 'accepted connection from %s:%d' % (addr[0], addr[1])
+
+    # load request into queue to be sent over control socket by ControlClient
+    gui_queue.put(serialized)
+
+    # synchronously read in the msg length header
+    length = ''
+    while length == '':
+        length = conn.recv(2)
+        print length
+    print 'test received length header: %s' % length
+
+    # read in the message content
+    msg = conn.recv(int(length))
+
+    # construct a reply container and parse from the received message
+    reply = control_signals_pb2.RequestWrapper()
+    reply.ParseFromString(msg)
+    print 'test received request message:\n%s' % reply
+
+    startMessage = control_signals_pb2.StartRequest()
+    startMessage.MergeFrom(reply.start)
+
+    # check that we received a StartRequest back and it has the same fields
+    assert reply.HasField('start')
+    assert startMessage.port == 10002
+    assert startMessage.channels == 0xDEADBEEF
+
+    print 'made it to the end!'
+    nc.close_control_port()
