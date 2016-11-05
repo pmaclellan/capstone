@@ -6,13 +6,22 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, outgoing_queue, sent_dict, incoming_queue):
+    def __init__(self, host, port, outgoing_queue, incoming_queue):
         asyncore.dispatcher.__init__(self)
+
+        # initialize TCP socket
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+
+        # holds messages that have not been sent yet
         self.outgoing_queue = outgoing_queue
-        self.sent_dict = sent_dict
+
+        # holds serialized messages that have been received but not processed
         self.incoming_queue = incoming_queue
-        self.sequence = 0
+
+        # holds messages that have been sent over the
+        # control_socket but have not yet been ACKed
+        self.sent_dict = {}
+
         self.host = host
         self.port = port
         self.connected = False
@@ -22,6 +31,11 @@ class ControlClient(asyncore.dispatcher):
         self.connect((self.host, self.port))
         self.connected = True
 
+    def close_control_port(self):
+        print 'ControlClient: close_control_port()'
+        self.connected = False
+        self.close()
+
     def handle_connect(self):
         print 'handle_connect() entered'
 
@@ -30,56 +44,58 @@ class ControlClient(asyncore.dispatcher):
         self.close()
 
     def handle_read(self):
+        # read 16 bit length header
         length = self.recv(2)
         print 'received length header: %s' % length
+
+        # read the message content
         msg = self.recv(length)
         print 'received message: %s' % msg
-        ack = control_signals_pb2.RequestWrapper()
-        ack.ParseFromString(msg)
-        seq = ack.seq
+
+        # TODO: put onto incoming_queue and have another thread handle the parsing
+
+        # construct a container protobuf and parse into from serialized message
+        ackWrapper = control_signals_pb2.RequestWrapper()
+        ackWrapper.ParseFromString(msg)
+
+        seq = ackWrapper.seq
+
         if seq in self.sent_dict.keys():
             acked_request = self.sent_dict.pop(seq)
+            print 'ACKed request popped %s' % acked_request
             # TODO: process ACK and notify necessary parties
 
     def readable(self):
         return True
 
     def writable(self):
+        # we want to write whenever there are messages to be sent
         is_writable = not self.outgoing_queue.empty()
-        print 'writable() -> %s' % is_writable
         return is_writable
 
     def handle_write(self):
         # grab request to be sent from the queue
-        request = self.outgoing_queue.get_nowait()
-        print 'retrieved msg type: %s from queue' % type(request)
+        serialized_req_wrap = self.outgoing_queue.get_nowait()
+        print 'handle_write() retrieved msg from outgoing queue'
 
-        # wrap request in generic request message
-        wrapped_request = control_signals_pb2.RequestWrapper()
-        wrapped_request.sequence = self.sequence
-        if request is control_signals_pb2._STARTREQUEST:
-            wrapped_request.start = request
-        elif request is control_signals_pb2._STOPREQUEST:
-            wrapped_request.stop = request
-        elif request is control_signals_pb2._SAMPLERATEREQUEST:
-            wrapped_request.rate = request
-        elif request is control_signals_pb2._SENSITIVITYREQUEST:
-            wrapped_request.sens = request
+        # parse the request for storage in sent_dict
+        request_wrapper = control_signals_pb2.RequestWrapper()
+        request_wrapper.ParseFromString(serialized_req_wrap)
 
-        serialized = wrapped_request.SerializeToString()
         print 'sending message length over control socket'
-        self.send(str(sys.getsizeof(serialized)))
+        self.send(str(sys.getsizeof(serialized_req_wrap)))
+        # TODO: sent as a uint16
+
         print 'sending Request message over control socket'
-        sent = self.send(serialized)
+        sent = self.send(serialized_req_wrap)
         print 'sent message bytes: %d' % sent
-        self.sent_dict[self.sequence] = request
-        self.sequence += 1
-        print 'next SEQ num: %d' % self.sequence
+
+        print 'adding request %d to sent_dict' % request_wrapper.sequence
+        self.sent_dict[request_wrapper.sequence] = request_wrapper
 
 
 class NetworkController():
     def __init__(self, storage_queue, gui_queue):
-        print 'NetworkController __init__()'
 
         if type(storage_queue) is multiprocessing.queues.Queue:
             self.storage_queue = storage_queue
@@ -88,14 +104,8 @@ class NetworkController():
 
         if type(gui_queue) is multiprocessing.queues.Queue:
             self.gui_queue = gui_queue
-            print 'NC-side: gui_queue received is empty: %s' % gui_queue.empty()
-            print 'NC-side: self.gui_queue is empty: %s' % self.gui_queue.empty()
         else:
             raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(gui_queue)))
-
-        # sent_dict will hold request messages that have been sent over the
-        # control_socket but have not yet been ACKed
-        self.sent_dict = {}
 
         self.outgoing_queue = multiprocessing.Queue()
         self.received_queue = multiprocessing.Queue()
@@ -103,7 +113,6 @@ class NetworkController():
         # create TCP sockets for communication with DaQuLa
         self.control_client = ControlClient('localhost', 10001,
                                             self.outgoing_queue,
-                                            self.sent_dict,
                                             self.received_queue)
         self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -114,7 +123,10 @@ class NetworkController():
 
         # handle asyncore blocking loop in a separate thread
         # NOTE: lambda needed so loop() doesn't get called right away and block
-        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0))
+        # 1.0 sets the polling frequency (default=30.0)
+        # use_poll=True is a workaround to avoid "bad file descriptor" upon closing
+        # for python 2.7.X according to GitHub Issue...but it still gives the error
+        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0, use_poll=True))
 
     def connect_control_port(self):
         print 'connect_control_port() entered'
@@ -122,17 +134,26 @@ class NetworkController():
             self.control_client.connect_control_port()
             self.loop_thread.start()
 
+    def close_control_port(self):
+        self.control_client.close_control_port()
+        self.loop_thread.join()
+
     def recv_from_gui(self):
-        expected_requests = (control_signals_pb2.StartRequest,
-                             control_signals_pb2.StopRequest,
-                             control_signals_pb2.SampleRateRequest,
-                             control_signals_pb2.SensitivityRequest)
         while True:
             if not self.gui_queue.empty() and self.control_client.connected:
-                print 'client connected: %s' % self.control_client.connected
-                request = self.gui_queue.get_nowait()
-                if type(request) not in expected_requests:
-                    raise TypeError('unexpected object in queue from gui, Type: %s' % type(request))
-                else:
-                    print 'putting object in outgoing_queue'
-                    self.outgoing_queue.put(request)
+                requestWrapper = control_signals_pb2.RequestWrapper()
+
+                serialized = self.gui_queue.get_nowait()
+
+                requestWrapper.ParseFromString(serialized)
+                print 'received wrapper %s' % requestWrapper
+
+                # just pass along to control client without modifying
+                self.outgoing_queue.put(serialized)
+
+            elif not self.gui_queue.empty() and not self.control_client.connected:
+                self.gui_queue.get_nowait()
+                print 'NOT CONNECTED: dropped message'
+
+                # TODO: notify GUI that connection to server has not been established
+                # TODO: -> requests cannot be sent at this time
