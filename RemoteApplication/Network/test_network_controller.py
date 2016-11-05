@@ -1,4 +1,6 @@
 from network_controller import NetworkController
+
+import pytest
 import multiprocessing as mp
 import control_signals_pb2
 import time
@@ -11,10 +13,81 @@ def setup():
     nc = NetworkController(stg_queue, from_gui_queue, gui_data_queue)
     return (stg_queue, from_gui_queue, gui_data_queue, nc)
 
+def recv_request_wrapper(conn):
+    # synchronously read in the msg length header
+    length = ''
+    while length == '':
+        length = conn.recv(2)
+        print length
+    print 'test received length header: %s' % length
+
+    # read in the message content
+    msg = conn.recv(int(length))
+
+    # construct a reply container and parse from the received message
+    requestWrapper = control_signals_pb2.RequestWrapper()
+    requestWrapper.ParseFromString(msg)
+    print 'test received request message:\n%s' % requestWrapper
+
+    return requestWrapper
+
 class TestDataConnection:
     def test_creation(self):
         stg_queue, fgq, gui_data_queue, nc = setup()
         assert nc.data_client is not None
+
+    @pytest.mark.skip(reason="not fully implemented yet")
+    def test_connection(self):
+        print 'Starting Data:test_connection()'
+        sq, fgq, gdq, nc = setup()
+
+        startRequest = control_signals_pb2.StartRequest()
+        startRequest.port = 10002
+        startRequest.channels = 0xFFFFFFFF
+
+        # then insert it into a request wrapper
+        requestWrapper = control_signals_pb2.RequestWrapper()
+        requestWrapper.sequence = 1
+        requestWrapper.start.MergeFrom(startRequest)
+
+        # finally, serialize to send across boundary
+        serialized = requestWrapper.SerializeToString()
+
+        # setup a server socket to listen for control client connection
+        server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_sock.bind(('localhost', 10001))
+        server_sock.listen(1)
+        print 'listening on %s:%d' % ('localhost', 10001)
+
+        # tell the network controller to attempt a connection to the server socket
+        nc.connect_control_port()
+
+        conn, addr = server_sock.accept()
+        print 'Server: accepted connection from %s:%d' % (addr[0], addr[1])
+
+        # setup a server socket to listen for data client connection
+        sender_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sender_sock.bind(('localhost', 10002))
+        sender_sock.listen(1)
+        print 'listening on %s:%d' % ('localhost', 10002)
+
+        # load request into queue to be sent over control socket by ControlClient
+        fgq.put(serialized)
+
+        received = recv_request_wrapper(conn)
+
+        inner_request = control_signals_pb2.StartRequest()
+        inner_request.MergeFrom(received.start)
+
+        assert inner_request.port == 10002
+
+        data_conn, data_addr = sender_sock.accept()
+        print 'Sender: accepted connection from %s:%d' % (data_addr[0], data_addr[1])
+
+        assert data_conn.send('ayy')
+
+        sender_sock.close()
+        server_sock.close()
 
 class TestControlConnection:
     def test_creation(self):
@@ -79,7 +152,7 @@ class TestControlConnection:
         # Simulate message from GUI
         # first construct the inner request
         startRequest = control_signals_pb2.StartRequest()
-        startRequest.port = 10002
+        startRequest.port = 1
         startRequest.channels = 0xDEADBEEF
 
         # then insert it into a request wrapper
@@ -105,28 +178,16 @@ class TestControlConnection:
         # load request into queue to be sent over control socket by ControlClient
         from_gui_queue.put(serialized)
 
-        # synchronously read in the msg length header
-        length = ''
-        while length == '':
-            length = conn.recv(2)
-            print length
-        print 'test received length header: %s' % length
-
-        # read in the message content
-        msg = conn.recv(int(length))
-
-        # construct a reply container and parse from the received message
-        reply = control_signals_pb2.RequestWrapper()
-        reply.ParseFromString(msg)
-        print 'test received request message:\n%s' % reply
+        received = recv_request_wrapper(conn)
 
         startMessage = control_signals_pb2.StartRequest()
-        startMessage.MergeFrom(reply.start)
+        startMessage.MergeFrom(received.start)
 
         # check that we received a StartRequest back and it has the same fields
-        assert reply.HasField('start')
-        assert startMessage.port == 10002
+        assert received.HasField('start')
+        assert startMessage.port == 1
         assert startMessage.channels == 0xDEADBEEF
 
         print 'made it to the end!'
         nc.close_control_port()
+        server_sock.close()

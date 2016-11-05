@@ -19,7 +19,7 @@ class NetworkController():
         if type(from_gui_queue) is mp.queues.Queue:
             self.from_gui_queue = from_gui_queue
         else:
-            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(gui_queue)))
+            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(from_gui_queue)))
 
         if type(gui_data_queue) is mp.queues.Queue:
             self.gui_data_queue = gui_data_queue
@@ -55,9 +55,19 @@ class NetworkController():
             self.control_client.connect_control_port()
             self.loop_thread.start()
 
+    def connect_data_port(self):
+        print 'connect_data_port() entered'
+        if self.data_client is not None and not self.data_client.connected:
+            self.data_client.connect_data_port()
+
     def close_control_port(self):
+        if self.data_client.connected:
+            self.data_client.close_data_port()
         self.control_client.close_control_port()
         self.loop_thread.join()
+
+    def close_data_port(self):
+        self.control_client.close_data_port()
 
     def recv_from_gui(self):
         while True:
