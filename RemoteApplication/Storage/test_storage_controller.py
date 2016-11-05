@@ -15,7 +15,8 @@ def test_grabbuffer_single():
     ingoing_buffer = mp.Queue()
     sc = StorageController(ingoing_buffer)
     expected_filename = time.strftime('%Y%m%d-%H:%M:%S') + '.h5'
-    reading = np.array([('0.0', 0xDEADBEEF),
+    reading = np.array([('_TS', 1478300446552583),
+                        ('0.0', 0xDEADBEEF),
                         ('0.1', 0xDEADBEEF),
                         ('0.2', 0xDEADBEEF),
                         ('0.3', 0xDEADBEEF),
@@ -23,7 +24,7 @@ def test_grabbuffer_single():
                         ('1.1', 0xDEADBEEF),
                         ('1.2', 0xDEADBEEF),
                         ('1.3', 0xDEADBEEF)],
-                       dtype=[('channel', 'S3'), ('value', 'i2')])
+                       dtype=[('channel', 'S3'), ('value', 'uint64')])
     ingoing_buffer.put(reading)
     time.sleep(0.1)
     assert ingoing_buffer.empty()
@@ -39,7 +40,8 @@ def test_grabbuffer_short_burst():
     sc = StorageController(ingoing_buffer)
     expected_filename = time.strftime('%Y%m%d-%H:%M:%S') + '.h5'
     for i in range(1000):
-        reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+        reading = np.array([('_TS', 1478300446552583),
+                            ('0.0', random.randrange(0, 0xffffffff)),
                             ('0.1', random.randrange(0, 0xffffffff)),
                             ('0.2', random.randrange(0, 0xffffffff)),
                             ('0.3', random.randrange(0, 0xffffffff)),
@@ -47,7 +49,7 @@ def test_grabbuffer_short_burst():
                             ('1.1', random.randrange(0, 0xffffffff)),
                             ('1.2', random.randrange(0, 0xffffffff)),
                             ('1.3', random.randrange(0, 0xffffffff))],
-                           dtype=[('channel', 'S3'), ('value', 'i2')])
+                           dtype=[('channel', 'S3'), ('value', 'uint64')])
         ingoing_buffer.put(reading)
     time.sleep(0.5)
     assert ingoing_buffer.empty()
@@ -61,7 +63,8 @@ def test_writefiles_file_created():
     sc = StorageController(ingoing_buffer)
     expected_filename = time.strftime('%Y%m%d-%H:%M:%S') + '.h5'
 
-    reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+    reading = np.array([('_TS', 1478300446552583),
+                        ('0.0', random.randrange(0, 0xffffffff)),
                         ('0.1', random.randrange(0, 0xffffffff)),
                         ('0.2', random.randrange(0, 0xffffffff)),
                         ('0.3', random.randrange(0, 0xffffffff)),
@@ -69,7 +72,7 @@ def test_writefiles_file_created():
                         ('1.1', random.randrange(0, 0xffffffff)),
                         ('1.2', random.randrange(0, 0xffffffff)),
                         ('1.3', random.randrange(0, 0xffffffff))],
-                       dtype=[('channel', 'S3'), ('value', 'i2')])
+                       dtype=[('channel', 'S3'), ('value', 'uint64')])
 
     ingoing_buffer.put(reading)
     time.sleep(0.1)
@@ -85,17 +88,8 @@ def test_writefiles_short_burst():
     expected_filename = time.strftime('%Y%m%d-%H:%M:%S') + '.h5'
 
     for i in range(1000):
-        # reading = {('TS', random.random() * 15),
-        #            ('0.0', random.randrange(0, 0xffffffff)),
-        #            ('0.1', random.randrange(0, 0xffffffff)),
-        #            ('0.2', random.randrange(0, 0xffffffff)),
-        #            ('0.3', random.randrange(0, 0xffffffff)),
-        #            ('1.0', random.randrange(0, 0xffffffff)),
-        #            ('1.1', random.randrange(0, 0xffffffff)),
-        #            ('1.2', random.randrange(0, 0xffffffff)),
-        #            ('1.3', random.randrange(0, 0xffffffff)),
-        #            }
-        reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+        reading = np.array([('_TS', 1478301405130783),
+                            ('0.0', random.randrange(0, 0xffffffff)),
                             ('0.1', random.randrange(0, 0xffffffff)),
                             ('0.2', random.randrange(0, 0xffffffff)),
                             ('0.3', random.randrange(0, 0xffffffff)),
@@ -103,7 +97,7 @@ def test_writefiles_short_burst():
                             ('1.1', random.randrange(0, 0xffffffff)),
                             ('1.2', random.randrange(0, 0xffffffff)),
                             ('1.3', random.randrange(0, 0xffffffff))],
-                 dtype=[('channel', 'S3'), ('value', 'i2')])
+                            dtype=[('channel', 'S3'), ('value', 'uint64')])
         ingoing_buffer.put(reading)
 
     time.sleep(2)
@@ -118,7 +112,8 @@ def test_writefiles_mult_files():
     expected_filename = time.strftime('%Y%m%d') + '*'
 
     for i in range(10000):
-        reading = np.array([('0.0', random.randrange(0, 0xffffffff)),
+        reading = np.array([('_TS', 1478301405130783),
+                            ('0.0', random.randrange(0, 0xffffffff)),
                             ('0.1', random.randrange(0, 0xffffffff)),
                             ('0.2', random.randrange(0, 0xffffffff)),
                             ('0.3', random.randrange(0, 0xffffffff)),
@@ -126,7 +121,7 @@ def test_writefiles_mult_files():
                             ('1.1', random.randrange(0, 0xffffffff)),
                             ('1.2', random.randrange(0, 0xffffffff)),
                             ('1.3', random.randrange(0, 0xffffffff))],
-                           dtype=[('channel', 'S3'), ('value', 'i2')])
+                           dtype=[('channel', 'S3'), ('value', 'uint64')])
         ingoing_buffer.put(reading)
 
     time.sleep(8)

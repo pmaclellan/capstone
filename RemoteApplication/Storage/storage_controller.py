@@ -18,9 +18,10 @@ class StorageController():
 
     def writefiles(self):
         timeout_threshold = 1000
-        filesize_threshold = 100000
+        filesize_threshold = 512000
+        chunk_size = 200
         write_buffer = []
-        storage_type = np.dtype([('channel', 'S3'), ('value', 'i2')])
+        storage_type = np.dtype([('channel', 'S3'), ('value', 'uint64')])
 
         while True:
             filename = time.strftime('%Y%m%d-%H:%M:%S')+'.h5'
@@ -33,7 +34,7 @@ class StorageController():
                     timeout_counter = 0
                     reading = self.write_buffer.get_nowait()
                     write_buffer.append(reading.astype(storage_type))
-                    if len(write_buffer) > 200:
+                    if len(write_buffer) > chunk_size:
                         f.create_dataset(str(i), data=write_buffer)
                         print 'wrote dataset %d' % i
                         write_buffer = []
