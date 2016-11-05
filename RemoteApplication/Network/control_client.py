@@ -27,7 +27,7 @@ class ControlClient(asyncore.dispatcher):
         self.connected = False
 
     def connect_control_port(self):
-        print 'attempting connection'
+        print 'ControlClient: attempting connection'
         self.connect((self.host, self.port))
         self.connected = True
 
@@ -37,7 +37,7 @@ class ControlClient(asyncore.dispatcher):
         self.close()
 
     def handle_connect(self):
-        print 'handle_connect() entered'
+        print 'ControlClient: handle_connect() entered'
 
     def handle_close(self):
         self.connected = False
@@ -46,11 +46,11 @@ class ControlClient(asyncore.dispatcher):
     def handle_read(self):
         # read 16 bit length header
         length = self.recv(2)
-        print 'received length header: %s' % length
+        print 'ControlClient: received length header: %s' % length
 
         # read the message content
         msg = self.recv(length)
-        print 'received message: %s' % msg
+        print 'ControlClient: received message: %s' % msg
 
         # TODO: put onto incoming_queue and have another thread handle the parsing
 
@@ -62,7 +62,7 @@ class ControlClient(asyncore.dispatcher):
 
         if seq in self.sent_dict.keys():
             acked_request = self.sent_dict.pop(seq)
-            print 'ACKed request popped %s' % acked_request
+            print 'ControlClient: ACKed request popped %s' % acked_request
             # TODO: process ACK and notify necessary parties
 
     def readable(self):
@@ -76,19 +76,19 @@ class ControlClient(asyncore.dispatcher):
     def handle_write(self):
         # grab request to be sent from the queue
         serialized_req_wrap = self.outgoing_queue.get_nowait()
-        print 'handle_write() retrieved msg from outgoing queue'
+        print 'ControlClient: handle_write() retrieved msg from outgoing queue'
 
         # parse the request for storage in sent_dict
         request_wrapper = control_signals_pb2.RequestWrapper()
         request_wrapper.ParseFromString(serialized_req_wrap)
 
-        print 'sending message length over control socket'
+        print 'ControlClient: sending message length over control socket'
         self.send(str(sys.getsizeof(serialized_req_wrap)))
         # TODO: sent as a uint16
 
-        print 'sending Request message over control socket'
+        print 'ControlClient: sending Request message over control socket'
         sent = self.send(serialized_req_wrap)
-        print 'sent message bytes: %d' % sent
+        print 'ControlClient: sent message bytes: %d' % sent
 
-        print 'adding request %d to sent_dict' % request_wrapper.sequence
+        print 'ControlClient: adding request %d to sent_dict' % request_wrapper.sequence
         self.sent_dict[request_wrapper.sequence] = request_wrapper
