@@ -1,0 +1,8 @@
+13:43:47 INFO  : Launching XSDB server: xsdb -n -interactive /home/lauriaclarke-lnx/Documents/EECE4790/DMA/bmartini_driver/project-loopback-vivado/loopback-vivado.sdk/temp_xsdb_launch_script.tcl
+13:43:49 INFO  : XSDB server has started successfully.
+13:43:49 INFO  : Processing command line option -hwspec /home/lauriaclarke-lnx/Documents/EECE4790/DMA/bmartini_driver/project-loopback-vivado/loopback-vivado.sdk/system_wrapper.hdf.
+13:44:31 INFO  : Saving repository preferences.
+13:44:31 INFO  : Reading in cores from local repositories: 
+		 /home/lauriaclarke-lnx/Desktop/ZedboardBoot/resources/device_tree/device_tree-generator
+13:44:31 INFO  : Cleaning BSP projects in the workspace.
+13:44:31 INFO  : Saving repository preferences.
