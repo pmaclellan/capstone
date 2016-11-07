@@ -6,7 +6,7 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, outgoing_queue, incoming_queue):
+    def __init__(self, host, port, outgoing_queue, ack_queue):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
@@ -15,8 +15,11 @@ class ControlClient(asyncore.dispatcher):
         # holds messages that have not been sent yet
         self.outgoing_queue = outgoing_queue
 
+        # used to pass ACKs up to network controller
+        self.ack_queue = ack_queue
+
         # holds serialized messages that have been received but not processed
-        self.incoming_queue = incoming_queue
+        self.incoming_queue = mp.Queue()
 
         # holds messages that have been sent over the
         # control_socket but have not yet been ACKed
@@ -49,7 +52,7 @@ class ControlClient(asyncore.dispatcher):
         print 'ControlClient: received length header: %s' % length
 
         # read the message content
-        msg = self.recv(length)
+        msg = self.recv(int(length))
         print 'ControlClient: received message: %s' % msg
 
         # TODO: put onto incoming_queue and have another thread handle the parsing
@@ -58,12 +61,12 @@ class ControlClient(asyncore.dispatcher):
         ackWrapper = control_signals_pb2.RequestWrapper()
         ackWrapper.ParseFromString(msg)
 
-        seq = ackWrapper.seq
+        sequence = ackWrapper.sequence
 
-        if seq in self.sent_dict.keys():
-            acked_request = self.sent_dict.pop(seq)
-            print 'ControlClient: ACKed request popped %s' % acked_request
-            # TODO: process ACK and notify necessary parties
+        if sequence in self.sent_dict.keys():
+            serialized_acked_request = self.sent_dict.pop(sequence)
+            print 'ControlClient: ACKed request popped %s' % serialized_acked_request
+            self.ack_queue.put(serialized_acked_request)
 
     def readable(self):
         return True
@@ -91,4 +94,4 @@ class ControlClient(asyncore.dispatcher):
         print 'ControlClient: sent message bytes: %d' % sent
 
         print 'ControlClient: adding request %d to sent_dict' % request_wrapper.sequence
-        self.sent_dict[request_wrapper.sequence] = request_wrapper
+        self.sent_dict[request_wrapper.sequence] = serialized_req_wrap

@@ -6,12 +6,10 @@ import sys
 import control_signals_pb2
 
 
-class DataClient(asyncore.dispatcher):
+class DataClient():
     def __init__(self, host, port, storage_queue, gui_data_queue):
-        asyncore.dispatcher.__init__(self)
-
         # initialize TCP socket
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # buffer between NetworkController and StorageController
         self.storage_queue = storage_queue
@@ -31,26 +29,14 @@ class DataClient(asyncore.dispatcher):
 
     def connect_data_port(self):
         print 'DataClient: attempting connection'
-        self.connect((self.host, self.port))
+        self.sock.connect((self.host, self.port))
         self.connected = True
 
     def close_data_port(self):
         print 'DataClient: close_control_port()'
         self.connected = False
-        self.close()
+        self.sock.close()
 
-    def handle_connect(self):
-        print 'DataClient: handle_connect() entered'
-
-    def handle_close(self):
-        self.connected = False
-        self.close()
-
-    def handle_read(self):
-        print 'baz'
-
-    def readable(self):
-        return True
-
-    def writable(self):
-        return False
+    def receive_data(self):
+        self.sock.recv()
+        # TODO: don't just drop data

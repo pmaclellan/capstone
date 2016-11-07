@@ -5,42 +5,54 @@ import multiprocessing as mp
 import control_signals_pb2
 import time
 import socket
+import sys
+
+stg_queue = mp.Queue()
+from_gui_queue = mp.Queue()
+to_gui_queue = mp.Queue()
+gui_data_queue = mp.Queue()
 
 def setup():
+    global stg_queue
+    global from_gui_queue
+    global to_gui_queue
+    global gui_data_queue
+
     stg_queue = mp.Queue()
     from_gui_queue = mp.Queue()
+    to_gui_queue = mp.Queue()
     gui_data_queue = mp.Queue()
-    nc = NetworkController(stg_queue, from_gui_queue, gui_data_queue)
-    return (stg_queue, from_gui_queue, gui_data_queue, nc)
+    nc = NetworkController(stg_queue, from_gui_queue, to_gui_queue, gui_data_queue)
+    return nc
 
-def recv_request_wrapper(conn):
+def recv_request_wrapper(control_conn):
     # synchronously read in the msg length header
     length = ''
     while length == '':
-        length = conn.recv(2)
+        length = control_conn.recv(2)
         print length
-    print 'test received length header: %s' % length
+    print 'ControlServer: received length header: %s' % length
 
     # read in the message content
-    msg = conn.recv(int(length))
+    msg = control_conn.recv(int(length))
 
     # construct a reply container and parse from the received message
     requestWrapper = control_signals_pb2.RequestWrapper()
     requestWrapper.ParseFromString(msg)
-    print 'test received request message:\n%s' % requestWrapper
+    print 'ControlServer: received request message:\n%s' % requestWrapper
 
     return requestWrapper
 
 class TestDataConnection:
     def test_creation(self):
-        stg_queue, fgq, gui_data_queue, nc = setup()
+        nc = setup()
         assert nc.data_client is not None
 
-    @pytest.mark.skip(reason="not fully implemented yet")
     def test_connection(self):
         print 'Starting Data:test_connection()'
-        sq, fgq, gdq, nc = setup()
+        nc = setup()
 
+        # construct the initial start streaming request
         startRequest = control_signals_pb2.StartRequest()
         startRequest.port = 10002
         startRequest.channels = 0xFFFFFFFF
@@ -57,45 +69,55 @@ class TestDataConnection:
         server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_sock.bind(('localhost', 10001))
         server_sock.listen(1)
-        print 'listening on %s:%d' % ('localhost', 10001)
-
-        # tell the network controller to attempt a connection to the server socket
-        nc.connect_control_port()
-
-        conn, addr = server_sock.accept()
-        print 'Server: accepted connection from %s:%d' % (addr[0], addr[1])
+        print 'ControlServer: listening on %s:%d' % ('localhost', 10001)
 
         # setup a server socket to listen for data client connection
         sender_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sender_sock.bind(('localhost', 10002))
         sender_sock.listen(1)
-        print 'listening on %s:%d' % ('localhost', 10002)
+        print 'DataServer: listening on %s:%d' % ('localhost', 10002)
+
+        # tell the network controller to attempt a connection to the control server
+        nc.connect_control_port()
+
+        control_conn, addr = server_sock.accept()
+        print 'ControlServer: accepted connection from %s:%d' % (addr[0], addr[1])
 
         # load request into queue to be sent over control socket by ControlClient
-        fgq.put(serialized)
+        from_gui_queue.put(serialized)
 
-        received = recv_request_wrapper(conn)
+        received = recv_request_wrapper(control_conn)
 
         inner_request = control_signals_pb2.StartRequest()
         inner_request.MergeFrom(received.start)
 
         assert inner_request.port == 10002
 
+        # construct a reply ACK and send over control connection
+        serialized_ack = received.SerializeToString()
+        length = sys.getsizeof(serialized_ack)
+        control_conn.send(str(length))
+        control_conn.send(serialized_ack)
+
         data_conn, data_addr = sender_sock.accept()
-        print 'Sender: accepted connection from %s:%d' % (data_addr[0], data_addr[1])
+        print 'DataServer: accepted connection from %s:%d' % (data_addr[0], data_addr[1])
 
         assert data_conn.send('ayy')
 
+        # cleanup and close all connections
+        nc.close_control_port()
         sender_sock.close()
+        data_conn.close()
         server_sock.close()
+        control_conn.close()
 
 class TestControlConnection:
     def test_creation(self):
-        stg_queue, from_gui_queue, gdq, nc = setup()
+        nc = setup()
         assert nc.control_client is not None
 
     def test_gui_queue_receiver(self):
-        stg_queue, from_gui_queue, gdq, nc = setup()
+        nc = setup()
 
         startRequest = control_signals_pb2.StartRequest()
         startRequest.port = 1
@@ -111,7 +133,7 @@ class TestControlConnection:
         assert from_gui_queue.empty()
 
     def test_mult_types_gui_queue_receiver(self):
-        stg_queue, from_gui_queue, gdq, nc = setup()
+        nc = setup()
 
         # construct inner request
         startRequest = control_signals_pb2.StartRequest()
@@ -147,7 +169,7 @@ class TestControlConnection:
 
 
     def test_control_socket_send_request(self):
-        stg_queue, from_gui_queue, gdq, nc = setup()
+        nc = setup()
 
         # Simulate message from GUI
         # first construct the inner request
@@ -188,6 +210,6 @@ class TestControlConnection:
         assert startMessage.port == 1
         assert startMessage.channels == 0xDEADBEEF
 
-        print 'made it to the end!'
         nc.close_control_port()
         server_sock.close()
+        conn.close()

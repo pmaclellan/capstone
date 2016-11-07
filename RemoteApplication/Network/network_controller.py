@@ -9,7 +9,7 @@ from data_client import DataClient
 
 
 class NetworkController():
-    def __init__(self, storage_queue, from_gui_queue, gui_data_queue):
+    def __init__(self, storage_queue, from_gui_queue, to_gui_queue, gui_data_queue):
 
         if type(storage_queue) is mp.queues.Queue:
             self.storage_queue = storage_queue
@@ -21,18 +21,26 @@ class NetworkController():
         else:
             raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(from_gui_queue)))
 
+        if type(to_gui_queue) is mp.queues.Queue:
+            self.to_gui_queue = to_gui_queue
+        else:
+            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(to_gui_queue)))
+
         if type(gui_data_queue) is mp.queues.Queue:
             self.gui_data_queue = gui_data_queue
         else:
             raise TypeError('arg 3 must be a multiprocessing.Queue, found \n%s' % str(type(gui_data_queue)))
 
+        # shared with control client, holds request messages to be sent
         self.outgoing_queue = mp.Queue()
-        self.received_queue = mp.Queue()
+
+        # control client will write ACK'd requests here
+        self.ack_queue = mp.Queue()
 
         # create TCP sockets for communication with DaQuLa
         self.control_client = ControlClient('localhost', 10001,
                                             self.outgoing_queue,
-                                            self.received_queue)
+                                            self.ack_queue)
         self.data_client = DataClient('localhost', 10002,
                                       self.gui_data_queue,
                                       self.storage_queue)
@@ -41,6 +49,10 @@ class NetworkController():
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
         self.gui_receiver_thread.daemon = True
         self.gui_receiver_thread.start()
+
+        # listens for ACK messages being passed back from control client
+        self.ack_listener_thread = threading.Thread(target=self.read_ack_messages)
+        self.ack_listener_thread.start()
 
         # handle asyncore blocking loop in a separate thread
         # NOTE: lambda needed so loop() doesn't get called right away and block
@@ -88,3 +100,25 @@ class NetworkController():
 
                 # TODO: notify GUI that connection to server has not been established
                 # TODO: -> requests cannot be sent at this time
+
+    def read_ack_messages(self):
+        while True:
+            if not self.ack_queue.empty():
+                acked = self.ack_queue.get_nowait()
+                ack_wrapper = control_signals_pb2.RequestWrapper()
+                ack_wrapper.ParseFromString(acked)
+                print 'NetworkController: received ACK message %s' % ack_wrapper
+
+                if ack_wrapper.HasField('start') and not self.data_client.connected:
+                    print 'NetworkController: received start ACK, starting data client'
+                    try:
+                        self.data_client.connect_data_port()
+                        self.to_gui_queue.put(acked)
+                    except Exception, e:
+                        print('ERROR: could not connect data client, exception is %s' % e)
+
+                elif self.data_client.connected:
+                    # passthrough
+                    self.to_gui_queue.put(acked)
+
+
