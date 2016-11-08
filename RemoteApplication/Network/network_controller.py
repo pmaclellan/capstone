@@ -1,8 +1,8 @@
-import socket
 import multiprocessing as mp
+import numpy as np
 import threading
 import asyncore
-import sys
+import bisect
 import control_signals_pb2
 from control_client import ControlClient
 from data_client import DataClient
@@ -36,6 +36,15 @@ class NetworkController():
 
         # control client will write ACK'd requests here
         self.ack_queue = mp.Queue()
+
+        # default to all channels being active
+        # NOTE: this needs to match up with the default state of the channel checboxes on GUI
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                                '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
+                                '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
+                                '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
+
+        self.channel_mask = self.generateChannelBitMask()
 
         # create TCP sockets for communication with DaQuLa
         self.control_client = ControlClient('localhost', 10001,
@@ -80,6 +89,33 @@ class NetworkController():
 
     def close_data_port(self):
         self.control_client.close_data_port()
+
+    def processChannelUpdate(self, sender, checked):
+        if checked:
+            if sender.text() not in self.active_channels:
+                bisect.insort(self.active_channels, str(sender.text()))
+        else:
+            if sender.text() in self.active_channels:
+                self.active_channels.remove(sender.text())
+
+        print(self.active_channels)
+        self.channel_mask = self.generateChannelBitMask()
+        self.data_client.update_active_channels(self.active_channels)
+        print(self.channel_mask)
+
+    def generateChannelBitMask(self):
+        bit_mask = np.uint32(0)
+        offset = 0
+        for i in range(4):
+            for j in range(8):
+                if (str(i) + '.' + str(j)) in self.active_channels:
+                    # bit_mask |= 0x01 << offset
+                    bit_mask = np.bitwise_or(bit_mask, np.left_shift(np.uint32(1), offset))
+                else:
+                    # bit_mask &= ~(0x01 << offset)
+                    bit_mask = np.bitwise_and(bit_mask, np.bitwise_not(np.left_shift(np.uint32(1), offset)))
+                offset += 1
+        return bit_mask
 
     def recv_from_gui(self):
         while True:
