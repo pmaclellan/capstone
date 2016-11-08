@@ -1,10 +1,11 @@
 import socket
 import multiprocessing as mp
 import threading
+import Queue # just needed for the Empty exception
 
 
 class DataClient():
-    def __init__(self, host, port, storage_queue, gui_data_queue):
+    def __init__(self, host, port, storage_queue, gui_data_queue, active_channels):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -13,6 +14,9 @@ class DataClient():
 
         # buffer between NetworkController and GUI
         self.gui_queue = gui_data_queue
+
+        # list of channel strings (e.g. '0.0')
+        self.active_channels = active_channels
 
         # buffer for incoming data stream from socket
         self.incoming_queue = mp.Queue()
@@ -23,6 +27,7 @@ class DataClient():
         self.recv_stop_event = threading.Event()
         self.receiver_thread = threading.Thread(target=self.receive_data, args=[self.recv_stop_event])
         self.sync_recovery_thread = threading.Thread(target=self.syncronize_stream, args=[self.recv_stop_event])
+        self.parser_thread = threading.Thread(target=self.parse_readings, args=[self.recv_stop_event])
 
         self.host = host
         self.port = port
@@ -32,22 +37,31 @@ class DataClient():
     def start_receiver_thread(self):
         self.receiver_thread.start()
 
-    def stop_receiver_thread(self):
+    def stop_data_threads(self):
         self.recv_stop_event.set()
 
     def start_sync_recovery_thread(self):
         self.sync_recovery_thread.start()
 
+    def start_parser_thread(self):
+        self.parser_thread.start()
+
+    def update_active_channels(self, active_channels):
+        self.active_channels = active_channels
+        print 'ACTIVE CHANNELS: %s' % self.active_channels
+
     def connect_data_port(self):
         print 'DataClient: attempting connection'
         self.sock.connect((self.host, self.port))
         self.start_receiver_thread()
+        self.start_sync_recovery_thread()
+        self.start_parser_thread()
         self.connected = True
 
     def close_data_port(self):
         print 'DataClient: close_control_port()'
         self.connected = False
-        self.stop_receiver_thread()
+        self.stop_data_threads()
         self.sock.close()
 
     def receive_data(self, *args):
@@ -55,7 +69,7 @@ class DataClient():
         while not stop_event.is_set():
             byte = self.sock.recv(1)
             if byte != '':
-                self.incoming_queue.put(byte.encode('hex'))
+                self.incoming_queue.put(byte)
 
     def syncronize_stream(self, *args):
         print '\n\nsync thread started'
@@ -66,8 +80,7 @@ class DataClient():
         temp_buffer = []
         # used in recovery process to store byte from previous iteration
         temp_byte = ''
-        # n = len(self.active_channels)
-        n = 12
+        n = len(self.active_channels)
 
         while not stop_event.is_set():
             if self.incoming_queue.empty():
@@ -99,13 +112,13 @@ class DataClient():
                 try:
                     byte1 = self.incoming_queue.get_nowait()
                     byte1_enc = byte1.encode('hex')
-                except Exception, e:
+                except Queue.Empty:
                     print 'incoming_queue empty, skipping to next iteration'
                     continue
 
             # merge the two byte strings and convert to an integer
             value = int(byte1_enc + byte2_enc, 16)
-            print 'bytes: %s, %s' % (byte1_enc, byte2_enc)
+            # print 'bytes: %s, %s' % (byte1_enc, byte2_enc)
 
             if not self.synchronized:
                 if byte1_enc == 'de':
@@ -158,6 +171,7 @@ class DataClient():
                     if len(temp_buffer) >= (n + 2) and temp_buffer[-1 * (n + 2)] == 57005:
                         # all good, still synced up
                         # push the most recent set of readings to the parsing stage
+                        print 'S&R: passing buffer to pipeline_queue'
                         self.pipeline_queue.put(temp_buffer)
                         temp_buffer = [value]  # flush the buffer
                         # grab the timestamp next time around
@@ -182,3 +196,14 @@ class DataClient():
                     # store byte1_enc in case we run into a split DEAD
                     temp_byte = byte1_enc
                     continue
+
+    def parse_readings(self, *args):
+        stop_event = args[0]
+        while not stop_event.is_set():
+            try:
+                buffer = self.pipeline_queue.get_nowait()
+            except Queue.Empty:
+                continue
+
+            print buffer
+            self.parser_working = True

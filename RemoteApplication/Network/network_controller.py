@@ -52,7 +52,8 @@ class NetworkController():
                                             self.ack_queue)
         self.data_client = DataClient('localhost', 10002,
                                       self.gui_data_queue,
-                                      self.storage_queue)
+                                      self.storage_queue,
+                                      self.active_channels)
 
         # receives request protobuf messages triggered by GUI events
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
@@ -79,8 +80,6 @@ class NetworkController():
     def connect_data_port(self):
         print 'connect_data_port() entered'
         if self.data_client is not None and not self.data_client.connected:
-            # inform data client which channels it should expect before connecting
-            self.data_client.update_active_channels(self.active_channels)
             self.data_client.connect_data_port()
 
     def close_control_port(self):
