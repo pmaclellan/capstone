@@ -111,7 +111,7 @@ int main()
 void *control_task(void *dummy)
 {
     cout << "Thread No: " << pthread_self() << endl;
-    int data_port = 10002;
+    int data_port = 10001;
     std::string ackString;
     uint16_t ackSize;
     while(1)
@@ -163,8 +163,9 @@ void *control_task(void *dummy)
 	    // Send size of port number string over control socket
 	    start_request.set_port(data_port);
 	    request_wrapper.set_allocated_start(&start_request);
-	    request_wrapper.start().SerializeToString(&ackString);
+	    request_wrapper.SerializeToString(&ackString);
 	    ackSize = strlen(ackString.c_str());
+	    printf("size = %d\n", ackSize);
 	    if (send(client_fd, &ackSize, sizeof(ackSize), 0) < 0)
 	    {
 		fprintf(stderr, "Failure Sending Messages\n");
