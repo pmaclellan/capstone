@@ -1,125 +1,68 @@
-import socket
-import multiprocessing
+import multiprocessing as mp
+import numpy as np
 import threading
 import asyncore
-import sys
+import bisect
 import control_signals_pb2
-
-class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, outgoing_queue, incoming_queue):
-        asyncore.dispatcher.__init__(self)
-
-        # initialize TCP socket
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # holds messages that have not been sent yet
-        self.outgoing_queue = outgoing_queue
-
-        # holds serialized messages that have been received but not processed
-        self.incoming_queue = incoming_queue
-
-        # holds messages that have been sent over the
-        # control_socket but have not yet been ACKed
-        self.sent_dict = {}
-
-        self.host = host
-        self.port = port
-        self.connected = False
-
-    def connect_control_port(self):
-        print 'attempting connection'
-        self.connect((self.host, self.port))
-        self.connected = True
-
-    def close_control_port(self):
-        print 'ControlClient: close_control_port()'
-        self.connected = False
-        self.close()
-
-    def handle_connect(self):
-        print 'handle_connect() entered'
-
-    def handle_close(self):
-        self.connected = False
-        self.close()
-
-    def handle_read(self):
-        # read 16 bit length header
-        length = self.recv(2)
-        print 'received length header: %s' % length
-
-        # read the message content
-        msg = self.recv(length)
-        print 'received message: %s' % msg
-
-        # TODO: put onto incoming_queue and have another thread handle the parsing
-
-        # construct a container protobuf and parse into from serialized message
-        ackWrapper = control_signals_pb2.RequestWrapper()
-        ackWrapper.ParseFromString(msg)
-
-        seq = ackWrapper.seq
-
-        if seq in self.sent_dict.keys():
-            acked_request = self.sent_dict.pop(seq)
-            print 'ACKed request popped %s' % acked_request
-            # TODO: process ACK and notify necessary parties
-
-    def readable(self):
-        return True
-
-    def writable(self):
-        # we want to write whenever there are messages to be sent
-        is_writable = not self.outgoing_queue.empty()
-        return is_writable
-
-    def handle_write(self):
-        # grab request to be sent from the queue
-        serialized_req_wrap = self.outgoing_queue.get_nowait()
-        print 'handle_write() retrieved msg from outgoing queue'
-
-        # parse the request for storage in sent_dict
-        request_wrapper = control_signals_pb2.RequestWrapper()
-        request_wrapper.ParseFromString(serialized_req_wrap)
-
-        print 'sending message length over control socket'
-        self.send(str(sys.getsizeof(serialized_req_wrap)))
-        # TODO: sent as a uint16
-
-        print 'sending Request message over control socket'
-        sent = self.send(serialized_req_wrap)
-        print 'sent message bytes: %d' % sent
-
-        print 'adding request %d to sent_dict' % request_wrapper.sequence
-        self.sent_dict[request_wrapper.sequence] = request_wrapper
+from control_client import ControlClient
+from data_client import DataClient
 
 
 class NetworkController():
-    def __init__(self, storage_queue, gui_queue):
+    def __init__(self, storage_queue, from_gui_queue, to_gui_queue, gui_data_queue):
 
-        if type(storage_queue) is multiprocessing.queues.Queue:
+        if type(storage_queue) is mp.queues.Queue:
             self.storage_queue = storage_queue
         else:
-            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(storage_queue)))
+            raise TypeError('arg 1 must be a multiprocessing.Queue, found \n%s' % str(type(storage_queue)))
 
-        if type(gui_queue) is multiprocessing.queues.Queue:
-            self.gui_queue = gui_queue
+        if type(from_gui_queue) is mp.queues.Queue:
+            self.from_gui_queue = from_gui_queue
         else:
-            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(gui_queue)))
+            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(from_gui_queue)))
 
-        self.outgoing_queue = multiprocessing.Queue()
-        self.received_queue = multiprocessing.Queue()
+        if type(to_gui_queue) is mp.queues.Queue:
+            self.to_gui_queue = to_gui_queue
+        else:
+            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(to_gui_queue)))
+
+        if type(gui_data_queue) is mp.queues.Queue:
+            self.gui_data_queue = gui_data_queue
+        else:
+            raise TypeError('arg 3 must be a multiprocessing.Queue, found \n%s' % str(type(gui_data_queue)))
+
+        # shared with control client, holds request messages to be sent
+        self.outgoing_queue = mp.Queue()
+
+        # control client will write ACK'd requests here
+        self.ack_queue = mp.Queue()
+
+        # default to all channels being active
+        # NOTE: this needs to match up with the default state of the channel checboxes on GUI
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                                '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
+                                '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
+                                '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
+
+        self.channel_mask = self.generateChannelBitMask()
 
         # create TCP sockets for communication with DaQuLa
         self.control_client = ControlClient('localhost', 10001,
                                             self.outgoing_queue,
-                                            self.received_queue)
-        self.data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                                            self.ack_queue)
+        self.data_client = DataClient('localhost', 10002,
+                                      self.gui_data_queue,
+                                      self.storage_queue,
+                                      self.active_channels)
 
         # receives request protobuf messages triggered by GUI events
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
         self.gui_receiver_thread.daemon = True
         self.gui_receiver_thread.start()
+
+        # listens for ACK messages being passed back from control client
+        self.ack_listener_thread = threading.Thread(target=self.read_ack_messages)
+        self.ack_listener_thread.start()
 
         # handle asyncore blocking loop in a separate thread
         # NOTE: lambda needed so loop() doesn't get called right away and block
@@ -134,16 +77,53 @@ class NetworkController():
             self.control_client.connect_control_port()
             self.loop_thread.start()
 
+    def connect_data_port(self):
+        print 'connect_data_port() entered'
+        if self.data_client is not None and not self.data_client.connected:
+            self.data_client.connect_data_port()
+
     def close_control_port(self):
+        if self.data_client.connected:
+            self.data_client.close_data_port()
         self.control_client.close_control_port()
         self.loop_thread.join()
 
+    def close_data_port(self):
+        self.control_client.close_data_port()
+
+    def processChannelUpdate(self, sender, checked):
+        if checked:
+            if sender.text() not in self.active_channels:
+                bisect.insort(self.active_channels, str(sender.text()))
+        else:
+            if sender.text() in self.active_channels:
+                self.active_channels.remove(sender.text())
+
+        print(self.active_channels)
+        self.channel_mask = self.generateChannelBitMask()
+        self.data_client.update_active_channels(self.active_channels)
+        print(self.channel_mask)
+
+    def generateChannelBitMask(self):
+        bit_mask = np.uint32(0)
+        offset = 0
+        for i in range(4):
+            for j in range(8):
+                if (str(i) + '.' + str(j)) in self.active_channels:
+                    # bit_mask |= 0x01 << offset
+                    bit_mask = np.bitwise_or(bit_mask, np.left_shift(np.uint32(1), offset))
+                else:
+                    # bit_mask &= ~(0x01 << offset)
+                    bit_mask = np.bitwise_and(bit_mask, np.bitwise_not(np.left_shift(np.uint32(1), offset)))
+                offset += 1
+        return bit_mask
+
     def recv_from_gui(self):
         while True:
-            if not self.gui_queue.empty() and self.control_client.connected:
+            if not self.from_gui_queue.empty() and self.control_client.connected:
                 requestWrapper = control_signals_pb2.RequestWrapper()
 
-                serialized = self.gui_queue.get_nowait()
+                serialized = self.from_gui_queue.get_nowait()
 
                 requestWrapper.ParseFromString(serialized)
                 print 'received wrapper %s' % requestWrapper
@@ -151,9 +131,31 @@ class NetworkController():
                 # just pass along to control client without modifying
                 self.outgoing_queue.put(serialized)
 
-            elif not self.gui_queue.empty() and not self.control_client.connected:
-                self.gui_queue.get_nowait()
+            elif not self.from_gui_queue.empty() and not self.control_client.connected:
+                self.from_gui_queue.get_nowait()
                 print 'NOT CONNECTED: dropped message'
 
                 # TODO: notify GUI that connection to server has not been established
                 # TODO: -> requests cannot be sent at this time
+
+    def read_ack_messages(self):
+        while True:
+            if not self.ack_queue.empty():
+                acked = self.ack_queue.get_nowait()
+                ack_wrapper = control_signals_pb2.RequestWrapper()
+                ack_wrapper.ParseFromString(acked)
+                print 'NetworkController: received ACK message %s' % ack_wrapper
+
+                if ack_wrapper.HasField('start') and not self.data_client.connected:
+                    print 'NetworkController: received start ACK, starting data client'
+                    try:
+                        self.data_client.connect_data_port()
+                        self.to_gui_queue.put(acked)
+                    except Exception, e:
+                        print('ERROR: could not connect data client, exception is %s' % e)
+
+                elif self.data_client.connected:
+                    # passthrough
+                    self.to_gui_queue.put(acked)
+
+
