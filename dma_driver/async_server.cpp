@@ -139,9 +139,8 @@ void *control_task(void *dummy)
 	}
 	printf("Received wrapper with sequence=%d\n", request_wrapper.sequence());
 	// Complete functions based on which request was sent
-	switch (request_wrapper.sequence())
+	if (request_wrapper.has_start()) // Start Request
 	{
-	case 1: // Start Request
 	    start_request = request_wrapper.start();
 	    printf("With port=%d and channels=%d\n", start_request.port(), start_request.channels());
 	
@@ -180,19 +179,20 @@ void *control_task(void *dummy)
 		close(client_fd);
 		return NULL;
 	    }
-	    break;
-	case 2: // Stop Request
+	}
+	else if (request_wrapper.has_stop()) // Stop Request
+	{
 	    stop_request = request_wrapper.stop();
 	    printf("With port=%d and channels=%d\n", stop_request.port(), stop_request.channels());
-	    break;
-	case 3: // Sample Rate Request
+	}
+	else if (request_wrapper.has_rate()) // Sample Rate Request
+	{
 	    sample_rate_request = request_wrapper.rate();
 	    printf("With rate=%d\n", sample_rate_request.rate());
-	    break;
-	case 4: // Sensitivity Request
+	}
+	else if (request_wrapper.has_sens()) // Sensitivity Request
+	{
 	    sensitivity_request = request_wrapper.sens();
-	    //printf("With 
-	    break;
 	}
     }
 }
