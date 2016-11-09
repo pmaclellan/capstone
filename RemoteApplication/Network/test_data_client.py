@@ -1,10 +1,7 @@
 from data_client import DataClient
 
-import pytest
 import multiprocessing as mp
 import time
-import socket
-import sys
 
 host = 'foo'
 port = 5
@@ -32,6 +29,16 @@ dead_sequence = ['\xad', '\xde', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee']
+
+parser_input = [57005, 187649984473770,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183,
+                61183, 61183, 61183, 61183]
 
 active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
                    '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
@@ -149,4 +156,51 @@ class TestCombinedStages:
                 dc.incoming_queue.put(x)
 
         time.sleep(0.2)
-        assert dc.parser_working
+        assert not dc.storage_queue.empty()
+        assert not dc.gui_queue.empty()
+
+class TestPerformance:
+    def test_sync_recovery_speed(self):
+        dc = DataClient(host, port, storage_queue, gui_data_queue, active_channels)
+
+        dc.start_sync_recovery_thread()
+
+        input_length = 1000
+
+        start = time.time()
+
+        for i in range(input_length):
+            for x in normal_sequence:
+                dc.incoming_queue.put(x)
+
+        while not dc.incoming_queue.empty():
+            # wait for the parser to finish processing the input
+            continue
+
+        elapsed = time.time() - start
+
+        speed = 1 / (elapsed / input_length)
+
+        print '\n\nSync Recovery Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+
+    def test_parser_speed(self):
+        dc = DataClient(host, port, storage_queue, gui_data_queue, active_channels)
+
+        dc.start_parser_thread()
+
+        input_length = 10000
+
+        start = time.time()
+
+        for i in range(input_length):
+            dc.pipeline_queue.put(parser_input)
+
+        while not dc.pipeline_queue.empty():
+            # wait for the parser to finish processing the input
+            continue
+
+        elapsed = time.time() - start
+
+        speed = 1 / (elapsed / input_length)
+
+        print '\n\nParser Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
