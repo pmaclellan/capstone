@@ -11,17 +11,17 @@
 #include <fcntl.h>
 #include "control_signals.pb.h"
 #include <google/protobuf/text_format.h>
+#include <google/protobuf/message_lite.h>
 #include <iostream>
 
 #define CTRLPORT 10001
 #define DATAPORT 10002
 #define BACKLOG 5
 
-void error(const char *msg)
-{
-    perror(msg);
-    exit(1);
-}
+using namespace std;
+
+int getBit(int n, int bitNum);
+void error(const char *msg);
 
 int main()
 {
@@ -29,17 +29,25 @@ int main()
 
     StartRequest start_request = StartRequest();
 
-    int fd, active_channels;
+    int fd;
     const char * myfifo = "/tmp/dma-fifo";
-    uint16_t deadhead, timestamp, buf;
+    uint16_t deadhead, timestamp;
+    uint16_t buf;
     uint64_t adc0_channels[8];
     uint64_t adc1_channels[8];
     uint64_t adc2_channels[8];
     uint64_t adc3_channels[8];
+    int adc_channels[34];
+    for (int i = 0; i < 34; i++)
+    {
+	adc_channels[i] = 1;
+    }
 
     int data_port = 10002;
-    std::string start;
+    //std::string start;
     std::string ackString;
+    uint16_t ackSize;
+    uint32_t active_channels;
     
     struct sockaddr_in server;
     struct sockaddr_in dest;
@@ -92,7 +100,8 @@ int main()
 	error("ERROR listening failure");
     }
 
-    size = sizeof(struct sockaddr_in);
+    struct sockaddr_in sin;
+    size = sizeof(sin);
 
     // Accept and connect to control socket
     if ((client_fd[0] = accept(socket_fd[0], (struct sockaddr *)&dest, &size)) < 0)
@@ -101,38 +110,62 @@ int main()
     }
     printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
-    // Read start request, active channels
-    if (recv(client_fd[0], &start, 256, 0) < 0)
+    // Read size of incoming message
+    uint16_t messagesize;
+    if (recv(client_fd[0], &messagesize, sizeof(messagesize), 0) < 0)
     {
 	error("ERROR reading failure");
     }
 
-    printf("Read success\n");
-    //std::cout<<start<<std::endl;
-    //printf("Read from file success: %s\n", start.c_str());
-    //std::string start = start.ToString();
-    google::protobuf::TextFormat::ParseFromString(start, &start_request);
-    printf("Parsed\n");
-    //start = start_request.port();
-    //printf("PORT: %s\n", start);
-    active_channels = start_request.channels();
-    //printf("Channels: %s\n", active_channels);
-    /*if (recv(client_fd[0], &active_channels, sizeof(active_channels), 0) < 0)
+    // Read start request - port number, active channels
+    vector<char> start(messagesize);
+    if (recv(client_fd[0], start.data(), start.size(), 0) < 0)
     {
 	error("ERROR reading failure");
     }
-    start_request.set_channels(active_channels);*/
+    if (start_request.ParseFromArray(start.data(), start.size()) == false)
+    {
+	error("ERROR parsing failure");
+    }
+    printf("Received start request with port=%d and channels=%d\n", start_request.port(), start_request.channels());
 
-    // Send port number of streaming socket over control socket
+    // Parse active channels to find which are active and how many
+    int numChannels = 0;
+    int32_t channells = 4193226751;//4287627263;//4294967295;//
+    for (int i = 0; i < 32; i++)
+    {
+	if (getBit(channells, i) == 1) //*** start_request.channels() ***//
+	{
+	    numChannels++;
+	    adc_channels[i+2] = 1;
+	}
+	else
+	{
+	    printf("NOPE: i=%d\n", i);
+	    adc_channels[i+2] = 0;
+	}
+    }
+    printf("Number of channels=%d\n", numChannels);
+
+    // Send size of port number string over control socket
     start_request.set_port(data_port);
     start_request.SerializeToString(&ackString);
-    if (send(client_fd[0], &ackString, sizeof(ackString), 0) < 0)
+    ackSize = strlen(ackString.c_str());
+    if (send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
     {
 	fprintf(stderr, "Failure Sending Messages\n");
 	close(client_fd[0]);
 	return -1;
     }
-    printf("Sent port number back to client\n");
+
+    // Send port number of streaming socket over control socket
+    printf("Sending port number %d\n", start_request.port());
+    if (send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
+    {
+	fprintf(stderr, "Failure Sending Messages\n");
+	close(client_fd[0]);
+	return -1;
+    }
 
     // Listen on data socket for client to connect
     if (listen(socket_fd[1], BACKLOG) < 0)
@@ -141,8 +174,7 @@ int main()
     }
 
     size = sizeof(struct sockaddr_in);  
-	
-    printf("Listened\n");
+
     // Connect to client over data socket
     if ((client_fd[1] = accept(socket_fd[1], (struct sockaddr *)&dest, &size)) < 0) 
     {
@@ -151,31 +183,38 @@ int main()
     printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 	
     // Open file descriptor to read DMA data
-    fd = open(myfifo, O_RDONLY);
+    //fd = open(myfifo, O_RDONLY);
+    int counter = 0;
+    //printf("opened file descriptor\n");
     while(1)
     {
         bool send_data = false;	// send_data set only when buffer reads 0xDEAD
 	// Try to read 34 bytes of data (DEAD, timestamp, 32 channels)
+	fd = open(myfifo, O_RDONLY);
 	for(int i = 0; i < 34; i++)
     	{
 	    read(fd, &buf, sizeof(buf));
 	    // If read buffer is 0xDEAD, set sending flag to true
-	    if (buf == 57005)
+	    // Then check if 0xDEAD is at beginning of data segment
+	    if (buf == 57005 && (counter % (numChannels+2) == 0))
 	    {
 		send_data = true;
 	    }
-	    // Send the buffer to client as it is received
-	    if (send_data)
+	    // Send the buffer to client as it is received if adc channel is active
+	    if (send_data && (adc_channels[i] == 1))
 	    {
 		printf("Sending: %d\n", buf);
 	        send(client_fd[1], &buf, sizeof(buf), 0);
+		counter++;
 	    }
 	    // If sending flag is false, skip over buffer
 	    else
 	    {
-		break;
+		printf("skip\n");
 	    }
 	}
+	close(fd);
+	//counter++;
     }
     close(fd);
 
@@ -185,3 +224,18 @@ int main()
     close(socket_fd[1]);
     return 0;
 }
+
+int getBit(int n, int bitNum)
+{
+    int mask = 1 << bitNum;
+    int masked_n = n & mask;
+    int bit = masked_n >> bitNum;
+    return abs(bit);
+}
+
+void error(const char *msg)
+{
+    perror(msg);
+    exit(1);
+}
+
