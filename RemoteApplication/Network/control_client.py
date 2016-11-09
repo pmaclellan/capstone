@@ -1,6 +1,6 @@
 import socket
 import multiprocessing as mp
-import threading
+import numpy as np
 import asyncore
 import sys
 import control_signals_pb2
@@ -85,9 +85,9 @@ class ControlClient(asyncore.dispatcher):
         request_wrapper = control_signals_pb2.RequestWrapper()
         request_wrapper.ParseFromString(serialized_req_wrap)
 
+        length = np.uint16(len(serialized_req_wrap))
         print 'ControlClient: sending message length over control socket'
-        self.send(str(sys.getsizeof(serialized_req_wrap)))
-        # TODO: sent as a uint16
+        self.send(length)
 
         print 'ControlClient: sending Request message over control socket'
         sent = self.send(serialized_req_wrap)
