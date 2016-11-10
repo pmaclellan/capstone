@@ -1,0 +1,22 @@
+This directory contains the required files for booting the first working ezdma
+driver implementation:
+
+boot.bin:
+	- This file contains the HW image generate from the loopback example in
+	the following repo: https://github.com/jeremytrimble/ezdma.
+	- The FSBL was automatically created from Vivado SDK. 
+	- The uBoot image was generated using the following guide (which 
+	contains links to download relevant files): https://homepages.laas.fr/cfoucher/drupal/sites/homepages.laas.fr.cfoucher/files/u93/Installing_Embedded_Linux_on_ZedBoard_v1_0.pdf
+	
+devicetree.dtb:
+	- The device tree was generated according to the guide we used to
+	generate uBoot. We did, however modify the pl.dtsi file to match the
+	uImage and our custom driver (ezdma).
+
+pl.dtsi:
+	- The part of the device tree that we modified to implement the ezdma
+	driver. This is known to be working using kernel version 4.0.
+
+uImage:
+	- The kernel image version 4.0 with some modifications. We got this
+	from the following repo: https://github.com/jeremytrimble/linux-xlnx
