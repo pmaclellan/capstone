@@ -47,8 +47,10 @@ class ControlClient(asyncore.dispatcher):
         self.close()
 
     def handle_read(self):
-        # read 16 bit length header
-        length = self.recv(2)
+        # read 16 bit length header	
+	size = bytearray(2)
+        self.recv_into(size)
+	length = size[0]
         print 'ControlClient: received length header: %s' % length
 
         # read the message content

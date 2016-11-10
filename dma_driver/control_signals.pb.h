@@ -36,7 +36,7 @@ void protobuf_InitDefaults_control_5fsignals_2eproto();
 void protobuf_AssignDesc_control_5fsignals_2eproto();
 void protobuf_ShutdownFile_control_5fsignals_2eproto();
 
-class SampleRateRequest;
+class RequestWrapper;
 class SensitivityRequest;
 class StartRequest;
 class StopRequest;
@@ -140,12 +140,19 @@ class StartRequest : public ::google::protobuf::Message /* @@protoc_insertion_po
   ::google::protobuf::uint32 channels() const;
   void set_channels(::google::protobuf::uint32 value);
 
+  // optional uint32 rate = 3;
+  void clear_rate();
+  static const int kRateFieldNumber = 3;
+  ::google::protobuf::uint32 rate() const;
+  void set_rate(::google::protobuf::uint32 value);
+
   // @@protoc_insertion_point(class_scope:StartRequest)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::uint32 port_;
   ::google::protobuf::uint32 channels_;
+  ::google::protobuf::uint32 rate_;
   mutable int _cached_size_;
   friend void  protobuf_InitDefaults_control_5fsignals_2eproto_impl();
   friend void  protobuf_AddDesc_control_5fsignals_2eproto_impl();
@@ -227,11 +234,18 @@ class StopRequest : public ::google::protobuf::Message /* @@protoc_insertion_poi
   ::google::protobuf::uint32 port() const;
   void set_port(::google::protobuf::uint32 value);
 
+  // optional uint32 channels = 2;
+  void clear_channels();
+  static const int kChannelsFieldNumber = 2;
+  ::google::protobuf::uint32 channels() const;
+  void set_channels(::google::protobuf::uint32 value);
+
   // @@protoc_insertion_point(class_scope:StopRequest)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::uint32 port_;
+  ::google::protobuf::uint32 channels_;
   mutable int _cached_size_;
   friend void  protobuf_InitDefaults_control_5fsignals_2eproto_impl();
   friend void  protobuf_AddDesc_control_5fsignals_2eproto_impl();
@@ -241,92 +255,6 @@ class StopRequest : public ::google::protobuf::Message /* @@protoc_insertion_poi
   void InitAsDefaultInstance();
 };
 extern ::google::protobuf::internal::ExplicitlyConstructed<StopRequest> StopRequest_default_instance_;
-
-// -------------------------------------------------------------------
-
-class SampleRateRequest : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:SampleRateRequest) */ {
- public:
-  SampleRateRequest();
-  virtual ~SampleRateRequest();
-
-  SampleRateRequest(const SampleRateRequest& from);
-
-  inline SampleRateRequest& operator=(const SampleRateRequest& from) {
-    CopyFrom(from);
-    return *this;
-  }
-
-  static const ::google::protobuf::Descriptor* descriptor();
-  static const SampleRateRequest& default_instance();
-
-  static const SampleRateRequest* internal_default_instance();
-
-  void Swap(SampleRateRequest* other);
-
-  // implements Message ----------------------------------------------
-
-  inline SampleRateRequest* New() const { return New(NULL); }
-
-  SampleRateRequest* New(::google::protobuf::Arena* arena) const;
-  void CopyFrom(const ::google::protobuf::Message& from);
-  void MergeFrom(const ::google::protobuf::Message& from);
-  void CopyFrom(const SampleRateRequest& from);
-  void MergeFrom(const SampleRateRequest& from);
-  void Clear();
-  bool IsInitialized() const;
-
-  size_t ByteSizeLong() const;
-  bool MergePartialFromCodedStream(
-      ::google::protobuf::io::CodedInputStream* input);
-  void SerializeWithCachedSizes(
-      ::google::protobuf::io::CodedOutputStream* output) const;
-  ::google::protobuf::uint8* InternalSerializeWithCachedSizesToArray(
-      bool deterministic, ::google::protobuf::uint8* output) const;
-  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const {
-    return InternalSerializeWithCachedSizesToArray(false, output);
-  }
-  int GetCachedSize() const { return _cached_size_; }
-  private:
-  void SharedCtor();
-  void SharedDtor();
-  void SetCachedSize(int size) const;
-  void InternalSwap(SampleRateRequest* other);
-  void UnsafeMergeFrom(const SampleRateRequest& from);
-  private:
-  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
-    return _internal_metadata_.arena();
-  }
-  inline void* MaybeArenaPtr() const {
-    return _internal_metadata_.raw_arena_ptr();
-  }
-  public:
-
-  ::google::protobuf::Metadata GetMetadata() const;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  // optional int32 rate = 1;
-  void clear_rate();
-  static const int kRateFieldNumber = 1;
-  ::google::protobuf::int32 rate() const;
-  void set_rate(::google::protobuf::int32 value);
-
-  // @@protoc_insertion_point(class_scope:SampleRateRequest)
- private:
-
-  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
-  ::google::protobuf::int32 rate_;
-  mutable int _cached_size_;
-  friend void  protobuf_InitDefaults_control_5fsignals_2eproto_impl();
-  friend void  protobuf_AddDesc_control_5fsignals_2eproto_impl();
-  friend void protobuf_AssignDesc_control_5fsignals_2eproto();
-  friend void protobuf_ShutdownFile_control_5fsignals_2eproto();
-
-  void InitAsDefaultInstance();
-};
-extern ::google::protobuf::internal::ExplicitlyConstructed<SampleRateRequest> SampleRateRequest_default_instance_;
 
 // -------------------------------------------------------------------
 
@@ -442,6 +370,142 @@ class SensitivityRequest : public ::google::protobuf::Message /* @@protoc_insert
 };
 extern ::google::protobuf::internal::ExplicitlyConstructed<SensitivityRequest> SensitivityRequest_default_instance_;
 
+// -------------------------------------------------------------------
+
+class RequestWrapper : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:RequestWrapper) */ {
+ public:
+  RequestWrapper();
+  virtual ~RequestWrapper();
+
+  RequestWrapper(const RequestWrapper& from);
+
+  inline RequestWrapper& operator=(const RequestWrapper& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const RequestWrapper& default_instance();
+
+  enum MsgCase {
+    kStart = 2,
+    kStop = 3,
+    kSens = 4,
+    MSG_NOT_SET = 0,
+  };
+
+  static const RequestWrapper* internal_default_instance();
+
+  void Swap(RequestWrapper* other);
+
+  // implements Message ----------------------------------------------
+
+  inline RequestWrapper* New() const { return New(NULL); }
+
+  RequestWrapper* New(::google::protobuf::Arena* arena) const;
+  void CopyFrom(const ::google::protobuf::Message& from);
+  void MergeFrom(const ::google::protobuf::Message& from);
+  void CopyFrom(const RequestWrapper& from);
+  void MergeFrom(const RequestWrapper& from);
+  void Clear();
+  bool IsInitialized() const;
+
+  size_t ByteSizeLong() const;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input);
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const;
+  ::google::protobuf::uint8* InternalSerializeWithCachedSizesToArray(
+      bool deterministic, ::google::protobuf::uint8* output) const;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output) const {
+    return InternalSerializeWithCachedSizesToArray(false, output);
+  }
+  int GetCachedSize() const { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const;
+  void InternalSwap(RequestWrapper* other);
+  void UnsafeMergeFrom(const RequestWrapper& from);
+  private:
+  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
+    return _internal_metadata_.arena();
+  }
+  inline void* MaybeArenaPtr() const {
+    return _internal_metadata_.raw_arena_ptr();
+  }
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // optional uint32 sequence = 1;
+  void clear_sequence();
+  static const int kSequenceFieldNumber = 1;
+  ::google::protobuf::uint32 sequence() const;
+  void set_sequence(::google::protobuf::uint32 value);
+
+  // optional .StartRequest start = 2;
+  bool has_start() const;
+  void clear_start();
+  static const int kStartFieldNumber = 2;
+  const ::StartRequest& start() const;
+  ::StartRequest* mutable_start();
+  ::StartRequest* release_start();
+  void set_allocated_start(::StartRequest* start);
+
+  // optional .StopRequest stop = 3;
+  bool has_stop() const;
+  void clear_stop();
+  static const int kStopFieldNumber = 3;
+  const ::StopRequest& stop() const;
+  ::StopRequest* mutable_stop();
+  ::StopRequest* release_stop();
+  void set_allocated_stop(::StopRequest* stop);
+
+  // optional .SensitivityRequest sens = 4;
+  bool has_sens() const;
+  void clear_sens();
+  static const int kSensFieldNumber = 4;
+  const ::SensitivityRequest& sens() const;
+  ::SensitivityRequest* mutable_sens();
+  ::SensitivityRequest* release_sens();
+  void set_allocated_sens(::SensitivityRequest* sens);
+
+  MsgCase msg_case() const;
+  // @@protoc_insertion_point(class_scope:RequestWrapper)
+ private:
+  inline void set_has_start();
+  inline void set_has_stop();
+  inline void set_has_sens();
+
+  inline bool has_msg() const;
+  void clear_msg();
+  inline void clear_has_msg();
+
+  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
+  ::google::protobuf::uint32 sequence_;
+  union MsgUnion {
+    MsgUnion() {}
+    ::StartRequest* start_;
+    ::StopRequest* stop_;
+    ::SensitivityRequest* sens_;
+  } msg_;
+  mutable int _cached_size_;
+  ::google::protobuf::uint32 _oneof_case_[1];
+
+  friend void  protobuf_InitDefaults_control_5fsignals_2eproto_impl();
+  friend void  protobuf_AddDesc_control_5fsignals_2eproto_impl();
+  friend void protobuf_AssignDesc_control_5fsignals_2eproto();
+  friend void protobuf_ShutdownFile_control_5fsignals_2eproto();
+
+  void InitAsDefaultInstance();
+};
+extern ::google::protobuf::internal::ExplicitlyConstructed<RequestWrapper> RequestWrapper_default_instance_;
+
 // ===================================================================
 
 
@@ -478,6 +542,20 @@ inline void StartRequest::set_channels(::google::protobuf::uint32 value) {
   // @@protoc_insertion_point(field_set:StartRequest.channels)
 }
 
+// optional uint32 rate = 3;
+inline void StartRequest::clear_rate() {
+  rate_ = 0u;
+}
+inline ::google::protobuf::uint32 StartRequest::rate() const {
+  // @@protoc_insertion_point(field_get:StartRequest.rate)
+  return rate_;
+}
+inline void StartRequest::set_rate(::google::protobuf::uint32 value) {
+  
+  rate_ = value;
+  // @@protoc_insertion_point(field_set:StartRequest.rate)
+}
+
 inline const StartRequest* StartRequest::internal_default_instance() {
   return &StartRequest_default_instance_.get();
 }
@@ -499,29 +577,22 @@ inline void StopRequest::set_port(::google::protobuf::uint32 value) {
   // @@protoc_insertion_point(field_set:StopRequest.port)
 }
 
+// optional uint32 channels = 2;
+inline void StopRequest::clear_channels() {
+  channels_ = 0u;
+}
+inline ::google::protobuf::uint32 StopRequest::channels() const {
+  // @@protoc_insertion_point(field_get:StopRequest.channels)
+  return channels_;
+}
+inline void StopRequest::set_channels(::google::protobuf::uint32 value) {
+  
+  channels_ = value;
+  // @@protoc_insertion_point(field_set:StopRequest.channels)
+}
+
 inline const StopRequest* StopRequest::internal_default_instance() {
   return &StopRequest_default_instance_.get();
-}
-// -------------------------------------------------------------------
-
-// SampleRateRequest
-
-// optional int32 rate = 1;
-inline void SampleRateRequest::clear_rate() {
-  rate_ = 0;
-}
-inline ::google::protobuf::int32 SampleRateRequest::rate() const {
-  // @@protoc_insertion_point(field_get:SampleRateRequest.rate)
-  return rate_;
-}
-inline void SampleRateRequest::set_rate(::google::protobuf::int32 value) {
-  
-  rate_ = value;
-  // @@protoc_insertion_point(field_set:SampleRateRequest.rate)
-}
-
-inline const SampleRateRequest* SampleRateRequest::internal_default_instance() {
-  return &SampleRateRequest_default_instance_.get();
 }
 // -------------------------------------------------------------------
 
@@ -543,6 +614,180 @@ inline void SensitivityRequest::set_voltage(::SensitivityRequest_Voltage value) 
 
 inline const SensitivityRequest* SensitivityRequest::internal_default_instance() {
   return &SensitivityRequest_default_instance_.get();
+}
+// -------------------------------------------------------------------
+
+// RequestWrapper
+
+// optional uint32 sequence = 1;
+inline void RequestWrapper::clear_sequence() {
+  sequence_ = 0u;
+}
+inline ::google::protobuf::uint32 RequestWrapper::sequence() const {
+  // @@protoc_insertion_point(field_get:RequestWrapper.sequence)
+  return sequence_;
+}
+inline void RequestWrapper::set_sequence(::google::protobuf::uint32 value) {
+  
+  sequence_ = value;
+  // @@protoc_insertion_point(field_set:RequestWrapper.sequence)
+}
+
+// optional .StartRequest start = 2;
+inline bool RequestWrapper::has_start() const {
+  return msg_case() == kStart;
+}
+inline void RequestWrapper::set_has_start() {
+  _oneof_case_[0] = kStart;
+}
+inline void RequestWrapper::clear_start() {
+  if (has_start()) {
+    delete msg_.start_;
+    clear_has_msg();
+  }
+}
+inline  const ::StartRequest& RequestWrapper::start() const {
+  // @@protoc_insertion_point(field_get:RequestWrapper.start)
+  return has_start()
+      ? *msg_.start_
+      : ::StartRequest::default_instance();
+}
+inline ::StartRequest* RequestWrapper::mutable_start() {
+  if (!has_start()) {
+    clear_msg();
+    set_has_start();
+    msg_.start_ = new ::StartRequest;
+  }
+  // @@protoc_insertion_point(field_mutable:RequestWrapper.start)
+  return msg_.start_;
+}
+inline ::StartRequest* RequestWrapper::release_start() {
+  // @@protoc_insertion_point(field_release:RequestWrapper.start)
+  if (has_start()) {
+    clear_has_msg();
+    ::StartRequest* temp = msg_.start_;
+    msg_.start_ = NULL;
+    return temp;
+  } else {
+    return NULL;
+  }
+}
+inline void RequestWrapper::set_allocated_start(::StartRequest* start) {
+  clear_msg();
+  if (start) {
+    set_has_start();
+    msg_.start_ = start;
+  }
+  // @@protoc_insertion_point(field_set_allocated:RequestWrapper.start)
+}
+
+// optional .StopRequest stop = 3;
+inline bool RequestWrapper::has_stop() const {
+  return msg_case() == kStop;
+}
+inline void RequestWrapper::set_has_stop() {
+  _oneof_case_[0] = kStop;
+}
+inline void RequestWrapper::clear_stop() {
+  if (has_stop()) {
+    delete msg_.stop_;
+    clear_has_msg();
+  }
+}
+inline  const ::StopRequest& RequestWrapper::stop() const {
+  // @@protoc_insertion_point(field_get:RequestWrapper.stop)
+  return has_stop()
+      ? *msg_.stop_
+      : ::StopRequest::default_instance();
+}
+inline ::StopRequest* RequestWrapper::mutable_stop() {
+  if (!has_stop()) {
+    clear_msg();
+    set_has_stop();
+    msg_.stop_ = new ::StopRequest;
+  }
+  // @@protoc_insertion_point(field_mutable:RequestWrapper.stop)
+  return msg_.stop_;
+}
+inline ::StopRequest* RequestWrapper::release_stop() {
+  // @@protoc_insertion_point(field_release:RequestWrapper.stop)
+  if (has_stop()) {
+    clear_has_msg();
+    ::StopRequest* temp = msg_.stop_;
+    msg_.stop_ = NULL;
+    return temp;
+  } else {
+    return NULL;
+  }
+}
+inline void RequestWrapper::set_allocated_stop(::StopRequest* stop) {
+  clear_msg();
+  if (stop) {
+    set_has_stop();
+    msg_.stop_ = stop;
+  }
+  // @@protoc_insertion_point(field_set_allocated:RequestWrapper.stop)
+}
+
+// optional .SensitivityRequest sens = 4;
+inline bool RequestWrapper::has_sens() const {
+  return msg_case() == kSens;
+}
+inline void RequestWrapper::set_has_sens() {
+  _oneof_case_[0] = kSens;
+}
+inline void RequestWrapper::clear_sens() {
+  if (has_sens()) {
+    delete msg_.sens_;
+    clear_has_msg();
+  }
+}
+inline  const ::SensitivityRequest& RequestWrapper::sens() const {
+  // @@protoc_insertion_point(field_get:RequestWrapper.sens)
+  return has_sens()
+      ? *msg_.sens_
+      : ::SensitivityRequest::default_instance();
+}
+inline ::SensitivityRequest* RequestWrapper::mutable_sens() {
+  if (!has_sens()) {
+    clear_msg();
+    set_has_sens();
+    msg_.sens_ = new ::SensitivityRequest;
+  }
+  // @@protoc_insertion_point(field_mutable:RequestWrapper.sens)
+  return msg_.sens_;
+}
+inline ::SensitivityRequest* RequestWrapper::release_sens() {
+  // @@protoc_insertion_point(field_release:RequestWrapper.sens)
+  if (has_sens()) {
+    clear_has_msg();
+    ::SensitivityRequest* temp = msg_.sens_;
+    msg_.sens_ = NULL;
+    return temp;
+  } else {
+    return NULL;
+  }
+}
+inline void RequestWrapper::set_allocated_sens(::SensitivityRequest* sens) {
+  clear_msg();
+  if (sens) {
+    set_has_sens();
+    msg_.sens_ = sens;
+  }
+  // @@protoc_insertion_point(field_set_allocated:RequestWrapper.sens)
+}
+
+inline bool RequestWrapper::has_msg() const {
+  return msg_case() != MSG_NOT_SET;
+}
+inline void RequestWrapper::clear_has_msg() {
+  _oneof_case_[0] = MSG_NOT_SET;
+}
+inline RequestWrapper::MsgCase RequestWrapper::msg_case() const {
+  return RequestWrapper::MsgCase(_oneof_case_[0]);
+}
+inline const RequestWrapper* RequestWrapper::internal_default_instance() {
+  return &RequestWrapper_default_instance_.get();
 }
 #endif  // !PROTOBUF_INLINE_NOT_IN_HEADERS
 // -------------------------------------------------------------------
