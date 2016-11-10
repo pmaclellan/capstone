@@ -14,6 +14,7 @@
 #include <pthread.h>
 
 #define CTRLPORT 10001
+#define DATAPORT 10002
 #define BACKLOG 5
 
 using namespace std;
@@ -23,7 +24,7 @@ void error(const char *msg);
 void *control_task(void *);
 void *data_task(void *);
 
-int client_fd, socket_fd;
+int client_fd[2], socket_fd[2];
 int adc_channels[34];
 int numChannels;
 
@@ -49,12 +50,12 @@ int main()
     socklen_t size;
     int yes = 1;
 
-    // Set up socket for data
-    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    // Set up socket 0 for control data
+    if ((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
     {
 	error("ERROR socket failure");
     }
-    if (setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
+    if (setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
     {
 	error("ERROR setsockopt");
     }
@@ -63,13 +64,36 @@ int main()
     server.sin_family = AF_INET;
     server.sin_port = htons(CTRLPORT);
     server.sin_addr.s_addr = INADDR_ANY; 
-    if (bind(socket_fd, (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
+    if (bind(socket_fd[0], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
+    { 
+	error("ERROR binding failure");
+    }
+    // Set up socket 1 for signal data
+    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0) 
+    {
+	error("ERROR socket failure");
+    }
+    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0) 
+    {
+	error("ERROR setsockopt");
+    }
+    memset(&server, 0, sizeof(server));
+    memset(&dest, 0, sizeof(dest));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(DATAPORT);
+    server.sin_addr.s_addr = INADDR_ANY; 
+    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)   
     { 
 	error("ERROR binding failure");
     }
 
     // Listen for control socket
-    if (listen(socket_fd, BACKLOG) < 0)
+    if (listen(socket_fd[0], BACKLOG) < 0)
+    {
+	error("ERROR listening failure");
+    }
+    // Listen for data socket
+    if (listen(socket_fd[1], BACKLOG) < 0)
     {
 	error("ERROR listening failure");
     }
@@ -78,22 +102,24 @@ int main()
     // While loop waiting for connection
     while (thread_num < 3)
     {
-	if ((client_fd = accept(socket_fd, (struct sockaddr *)&dest, &size)) < 0)
+	printf("Listening\n");
+	if ((client_fd[0] = accept(socket_fd[0], (struct sockaddr *)&dest, &size)) < 0)
 	{
 	    error("ERROR acception failure");
 	}
 	printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
 	// Give first, control connection to thread 0
-	if (thread_num == 0)
+	pthread_create(&threadA[thread_num], NULL, control_task, NULL);
+	
+	if ((client_fd[1] = accept(socket_fd[1], (struct sockaddr *)&dest, &size)) < 0)
 	{
-	    pthread_create(&threadA[thread_num], NULL, control_task, NULL);
+	    error("ERROR acception failure");
 	}
+	printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+	
 	// Give second, data connection to thread 1
-	else if (thread_num == 1)
-	{
-	    pthread_create(&threadA[thread_num], NULL, data_task, NULL);
-	}
+	pthread_create(&threadA[thread_num], NULL, data_task, NULL);
 	
 	thread_num++;
     }
@@ -103,22 +129,26 @@ int main()
 	pthread_join(threadA[i], NULL);
     }
 
-    close(client_fd);
-    close(socket_fd);
+    close(client_fd[0]);
+    close(client_fd[1]);
+    close(socket_fd[0]);
+    close(socket_fd[1]);
     return 0;
 }
 
 void *control_task(void *dummy)
 {
     cout << "Thread No: " << pthread_self() << endl;
-    int data_port = 10001;
+    const char * dmaFifoControlPath = "/tmp/dma-fifo-control";
+    int fd;
+    int data_port = 10002;
     std::string ackString;
     uint16_t ackSize;
     while(1)
     {
 	// Read incoming message
 	uint16_t messagesize = 0;
-	int receive = recv(client_fd, &messagesize, sizeof(messagesize), 0);
+	int receive = recv(client_fd[0], &messagesize, sizeof(messagesize), 0);
 	if (receive < 0)
 	{
 	    error("ERROR reading failure");
@@ -129,7 +159,7 @@ void *control_task(void *dummy)
 	}
 	printf("Received size=%d\n", messagesize);
 	vector<char> buffer(messagesize);
-	if (recv(client_fd, buffer.data(), buffer.size(), 0) < 0)
+	if (recv(client_fd[0], buffer.data(), buffer.size(), 0) < 0)
 	{
 	    error("ERROR reading failure");
 	}
@@ -166,18 +196,18 @@ void *control_task(void *dummy)
 	    request_wrapper.SerializeToString(&ackString);
 	    ackSize = strlen(ackString.c_str());
 	    printf("size = %d\n", ackSize);
-	    if (send(client_fd, &ackSize, sizeof(ackSize), 0) < 0)
+	    if (send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
 	    {
 		fprintf(stderr, "Failure Sending Messages\n");
-		close(client_fd);
+		close(client_fd[0]);
 		return NULL;
 	    }
 	    // Send port number of streaming socket over control socket
 	    printf("Sending port number %d\n", start_request.port());
-	    if (send(client_fd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
+	    if (send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
 	    {
 		fprintf(stderr, "Failure Sending Messages\n");
-		close(client_fd);
+		close(client_fd[0]);
 		return NULL;
 	    }
 	}
@@ -189,6 +219,14 @@ void *control_task(void *dummy)
 	else if (request_wrapper.has_rate()) // Sample Rate Request
 	{
 	    sample_rate_request = request_wrapper.rate();
+	    if ((fd = open(dmaFifoControlPath, O_WRONLY) < 0))
+	    {
+		error("ERROR Could not open control fifo");
+		return NULL;
+	    }
+	    uint32_t rate = sample_rate_request.rate();
+	    write(fd, &rate, sizeof(uint32_t));
+	    close(fd);
 	    printf("With rate=%d\n", sample_rate_request.rate());
 	}
 	else if (request_wrapper.has_sens()) // Sensitivity Request
@@ -223,10 +261,10 @@ void *data_task(void *dummy)
 	    if (send_data && (adc_channels[i] == 1))
 	    {
 		printf("Sending: %d\n", buf);
-	        if (send(client_fd, &buf, sizeof(buf), 0) < 0)
+	        if (send(client_fd[1], &buf, sizeof(buf), 0) < 0)
 		{
 		    fprintf(stderr, "Failure Sending Messages\n");
-		    close(client_fd);
+		    close(client_fd[1]);
 		    return NULL;
 		}
 		counter++;
@@ -238,9 +276,7 @@ void *data_task(void *dummy)
 	    }
 	}
 	close(fd);
-	//counter++;
     }
-    close(fd);
 }
 
 int getBit(int n, int bitNum)

@@ -25,9 +25,6 @@ const ::google::protobuf::internal::GeneratedMessageReflection*
 const ::google::protobuf::Descriptor* StopRequest_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   StopRequest_reflection_ = NULL;
-const ::google::protobuf::Descriptor* SampleRateRequest_descriptor_ = NULL;
-const ::google::protobuf::internal::GeneratedMessageReflection*
-  SampleRateRequest_reflection_ = NULL;
 const ::google::protobuf::Descriptor* SensitivityRequest_descriptor_ = NULL;
 const ::google::protobuf::internal::GeneratedMessageReflection*
   SensitivityRequest_reflection_ = NULL;
@@ -38,7 +35,6 @@ const ::google::protobuf::internal::GeneratedMessageReflection*
 struct RequestWrapperOneofInstance {
   const ::StartRequest* start_;
   const ::StopRequest* stop_;
-  const ::SampleRateRequest* rate_;
   const ::SensitivityRequest* sens_;
 }* RequestWrapper_default_oneof_instance_ = NULL;
 
@@ -53,9 +49,10 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       "control_signals.proto");
   GOOGLE_CHECK(file != NULL);
   StartRequest_descriptor_ = file->message_type(0);
-  static const int StartRequest_offsets_[2] = {
+  static const int StartRequest_offsets_[3] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, port_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, channels_),
+    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, rate_),
   };
   StartRequest_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
@@ -82,21 +79,7 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       -1,
       sizeof(StopRequest),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StopRequest, _internal_metadata_));
-  SampleRateRequest_descriptor_ = file->message_type(2);
-  static const int SampleRateRequest_offsets_[1] = {
-    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SampleRateRequest, rate_),
-  };
-  SampleRateRequest_reflection_ =
-    ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
-      SampleRateRequest_descriptor_,
-      SampleRateRequest::internal_default_instance(),
-      SampleRateRequest_offsets_,
-      -1,
-      -1,
-      -1,
-      sizeof(SampleRateRequest),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SampleRateRequest, _internal_metadata_));
-  SensitivityRequest_descriptor_ = file->message_type(3);
+  SensitivityRequest_descriptor_ = file->message_type(2);
   static const int SensitivityRequest_offsets_[1] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, voltage_),
   };
@@ -111,12 +94,11 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       sizeof(SensitivityRequest),
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, _internal_metadata_));
   SensitivityRequest_Voltage_descriptor_ = SensitivityRequest_descriptor_->enum_type(0);
-  RequestWrapper_descriptor_ = file->message_type(4);
-  static const int RequestWrapper_offsets_[6] = {
+  RequestWrapper_descriptor_ = file->message_type(3);
+  static const int RequestWrapper_offsets_[5] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, sequence_),
     PROTO2_GENERATED_DEFAULT_ONEOF_FIELD_OFFSET(RequestWrapper_default_oneof_instance_, start_),
     PROTO2_GENERATED_DEFAULT_ONEOF_FIELD_OFFSET(RequestWrapper_default_oneof_instance_, stop_),
-    PROTO2_GENERATED_DEFAULT_ONEOF_FIELD_OFFSET(RequestWrapper_default_oneof_instance_, rate_),
     PROTO2_GENERATED_DEFAULT_ONEOF_FIELD_OFFSET(RequestWrapper_default_oneof_instance_, sens_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, msg_),
   };
@@ -150,8 +132,6 @@ void protobuf_RegisterTypes(const ::std::string&) {
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       StopRequest_descriptor_, StopRequest::internal_default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      SampleRateRequest_descriptor_, SampleRateRequest::internal_default_instance());
-  ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       SensitivityRequest_descriptor_, SensitivityRequest::internal_default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
       RequestWrapper_descriptor_, RequestWrapper::internal_default_instance());
@@ -164,8 +144,6 @@ void protobuf_ShutdownFile_control_5fsignals_2eproto() {
   delete StartRequest_reflection_;
   StopRequest_default_instance_.Shutdown();
   delete StopRequest_reflection_;
-  SampleRateRequest_default_instance_.Shutdown();
-  delete SampleRateRequest_reflection_;
   SensitivityRequest_default_instance_.Shutdown();
   delete SensitivityRequest_reflection_;
   RequestWrapper_default_instance_.Shutdown();
@@ -178,13 +156,11 @@ void protobuf_InitDefaults_control_5fsignals_2eproto_impl() {
 
   StartRequest_default_instance_.DefaultConstruct();
   StopRequest_default_instance_.DefaultConstruct();
-  SampleRateRequest_default_instance_.DefaultConstruct();
   SensitivityRequest_default_instance_.DefaultConstruct();
   RequestWrapper_default_instance_.DefaultConstruct();
   RequestWrapper_default_oneof_instance_ = new RequestWrapperOneofInstance();
   StartRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
   StopRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
-  SampleRateRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
   SensitivityRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
   RequestWrapper_default_instance_.get_mutable()->InitAsDefaultInstance();
 }
@@ -199,18 +175,16 @@ void protobuf_AddDesc_control_5fsignals_2eproto_impl() {
 
   protobuf_InitDefaults_control_5fsignals_2eproto();
   ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
-    "\n\025control_signals.proto\".\n\014StartRequest\022"
-    "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\"-\n\013StopR"
-    "equest\022\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\"!"
-    "\n\021SampleRateRequest\022\014\n\004rate\030\001 \001(\r\"j\n\022Sen"
-    "sitivityRequest\022,\n\007voltage\030\001 \001(\0162\033.Sensi"
-    "tivityRequest.Voltage\"&\n\007Voltage\022\010\n\004FIVE"
-    "\020\000\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002\"\260\001\n\016RequestWrapper"
-    "\022\020\n\010sequence\030\001 \001(\r\022\036\n\005start\030\002 \001(\0132\r.Star"
-    "tRequestH\000\022\034\n\004stop\030\003 \001(\0132\014.StopRequestH\000"
-    "\022\"\n\004rate\030\004 \001(\0132\022.SampleRateRequestH\000\022#\n\004"
-    "sens\030\005 \001(\0132\023.SensitivityRequestH\000B\005\n\003msg"
-    "b\006proto3", 448);
+    "\n\025control_signals.proto\"<\n\014StartRequest\022"
+    "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\022\014\n\004rate\030"
+    "\003 \001(\r\"-\n\013StopRequest\022\014\n\004port\030\001 \001(\r\022\020\n\010ch"
+    "annels\030\002 \001(\r\"j\n\022SensitivityRequest\022,\n\007vo"
+    "ltage\030\001 \001(\0162\033.SensitivityRequest.Voltage"
+    "\"&\n\007Voltage\022\010\n\004FIVE\020\000\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002"
+    "\"\214\001\n\016RequestWrapper\022\020\n\010sequence\030\001 \001(\r\022\036\n"
+    "\005start\030\002 \001(\0132\r.StartRequestH\000\022\034\n\004stop\030\003 "
+    "\001(\0132\014.StopRequestH\000\022#\n\004sens\030\004 \001(\0132\023.Sens"
+    "itivityRequestH\000B\005\n\003msgb\006proto3", 391);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "control_signals.proto", &protobuf_RegisterTypes);
   ::google::protobuf::internal::OnShutdown(&protobuf_ShutdownFile_control_5fsignals_2eproto);
@@ -243,6 +217,7 @@ static void MergeFromFail(int line) {
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
 const int StartRequest::kPortFieldNumber;
 const int StartRequest::kChannelsFieldNumber;
+const int StartRequest::kRateFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 StartRequest::StartRequest()
@@ -264,8 +239,8 @@ StartRequest::StartRequest(const StartRequest& from)
 }
 
 void StartRequest::SharedCtor() {
-  ::memset(&port_, 0, reinterpret_cast<char*>(&channels_) -
-    reinterpret_cast<char*>(&port_) + sizeof(channels_));
+  ::memset(&port_, 0, reinterpret_cast<char*>(&rate_) -
+    reinterpret_cast<char*>(&port_) + sizeof(rate_));
   _cached_size_ = 0;
 }
 
@@ -320,7 +295,7 @@ void StartRequest::Clear() {
            ZR_HELPER_(last) - ZR_HELPER_(first) + sizeof(last));\
 } while (0)
 
-  ZR_(port_, channels_);
+  ZR_(port_, rate_);
 
 #undef ZR_HELPER_
 #undef ZR_
@@ -362,6 +337,21 @@ bool StartRequest::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
+        if (input->ExpectTag(24)) goto parse_rate;
+        break;
+      }
+
+      // optional uint32 rate = 3;
+      case 3: {
+        if (tag == 24) {
+         parse_rate:
+
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
+                 input, &rate_)));
+        } else {
+          goto handle_unusual;
+        }
         if (input->ExpectAtEnd()) goto success;
         break;
       }
@@ -400,6 +390,11 @@ void StartRequest::SerializeWithCachedSizes(
     ::google::protobuf::internal::WireFormatLite::WriteUInt32(2, this->channels(), output);
   }
 
+  // optional uint32 rate = 3;
+  if (this->rate() != 0) {
+    ::google::protobuf::internal::WireFormatLite::WriteUInt32(3, this->rate(), output);
+  }
+
   // @@protoc_insertion_point(serialize_end:StartRequest)
 }
 
@@ -415,6 +410,11 @@ void StartRequest::SerializeWithCachedSizes(
   // optional uint32 channels = 2;
   if (this->channels() != 0) {
     target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(2, this->channels(), target);
+  }
+
+  // optional uint32 rate = 3;
+  if (this->rate() != 0) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(3, this->rate(), target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:StartRequest)
@@ -437,6 +437,13 @@ size_t StartRequest::ByteSizeLong() const {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::UInt32Size(
         this->channels());
+  }
+
+  // optional uint32 rate = 3;
+  if (this->rate() != 0) {
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt32Size(
+        this->rate());
   }
 
   int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
@@ -478,6 +485,9 @@ void StartRequest::UnsafeMergeFrom(const StartRequest& from) {
   if (from.channels() != 0) {
     set_channels(from.channels());
   }
+  if (from.rate() != 0) {
+    set_rate(from.rate());
+  }
 }
 
 void StartRequest::CopyFrom(const ::google::protobuf::Message& from) {
@@ -506,6 +516,7 @@ void StartRequest::Swap(StartRequest* other) {
 void StartRequest::InternalSwap(StartRequest* other) {
   std::swap(port_, other->port_);
   std::swap(channels_, other->channels_);
+  std::swap(rate_, other->rate_);
   _internal_metadata_.Swap(&other->_internal_metadata_);
   std::swap(_cached_size_, other->_cached_size_);
 }
@@ -547,6 +558,20 @@ void StartRequest::set_channels(::google::protobuf::uint32 value) {
   
   channels_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.channels)
+}
+
+// optional uint32 rate = 3;
+void StartRequest::clear_rate() {
+  rate_ = 0u;
+}
+::google::protobuf::uint32 StartRequest::rate() const {
+  // @@protoc_insertion_point(field_get:StartRequest.rate)
+  return rate_;
+}
+void StartRequest::set_rate(::google::protobuf::uint32 value) {
+  
+  rate_ = value;
+  // @@protoc_insertion_point(field_set:StartRequest.rate)
 }
 
 inline const StartRequest* StartRequest::internal_default_instance() {
@@ -872,250 +897,6 @@ inline const StopRequest* StopRequest::internal_default_instance() {
 
 // ===================================================================
 
-#if !defined(_MSC_VER) || _MSC_VER >= 1900
-const int SampleRateRequest::kRateFieldNumber;
-#endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
-
-SampleRateRequest::SampleRateRequest()
-  : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  if (this != internal_default_instance()) protobuf_InitDefaults_control_5fsignals_2eproto();
-  SharedCtor();
-  // @@protoc_insertion_point(constructor:SampleRateRequest)
-}
-
-void SampleRateRequest::InitAsDefaultInstance() {
-}
-
-SampleRateRequest::SampleRateRequest(const SampleRateRequest& from)
-  : ::google::protobuf::Message(),
-    _internal_metadata_(NULL) {
-  SharedCtor();
-  UnsafeMergeFrom(from);
-  // @@protoc_insertion_point(copy_constructor:SampleRateRequest)
-}
-
-void SampleRateRequest::SharedCtor() {
-  rate_ = 0u;
-  _cached_size_ = 0;
-}
-
-SampleRateRequest::~SampleRateRequest() {
-  // @@protoc_insertion_point(destructor:SampleRateRequest)
-  SharedDtor();
-}
-
-void SampleRateRequest::SharedDtor() {
-}
-
-void SampleRateRequest::SetCachedSize(int size) const {
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-}
-const ::google::protobuf::Descriptor* SampleRateRequest::descriptor() {
-  protobuf_AssignDescriptorsOnce();
-  return SampleRateRequest_descriptor_;
-}
-
-const SampleRateRequest& SampleRateRequest::default_instance() {
-  protobuf_InitDefaults_control_5fsignals_2eproto();
-  return *internal_default_instance();
-}
-
-::google::protobuf::internal::ExplicitlyConstructed<SampleRateRequest> SampleRateRequest_default_instance_;
-
-SampleRateRequest* SampleRateRequest::New(::google::protobuf::Arena* arena) const {
-  SampleRateRequest* n = new SampleRateRequest;
-  if (arena != NULL) {
-    arena->Own(n);
-  }
-  return n;
-}
-
-void SampleRateRequest::Clear() {
-// @@protoc_insertion_point(message_clear_start:SampleRateRequest)
-  rate_ = 0u;
-}
-
-bool SampleRateRequest::MergePartialFromCodedStream(
-    ::google::protobuf::io::CodedInputStream* input) {
-#define DO_(EXPRESSION) if (!GOOGLE_PREDICT_TRUE(EXPRESSION)) goto failure
-  ::google::protobuf::uint32 tag;
-  // @@protoc_insertion_point(parse_start:SampleRateRequest)
-  for (;;) {
-    ::std::pair< ::google::protobuf::uint32, bool> p = input->ReadTagWithCutoff(127);
-    tag = p.first;
-    if (!p.second) goto handle_unusual;
-    switch (::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(tag)) {
-      // optional uint32 rate = 1;
-      case 1: {
-        if (tag == 8) {
-
-          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
-                   ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
-                 input, &rate_)));
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectAtEnd()) goto success;
-        break;
-      }
-
-      default: {
-      handle_unusual:
-        if (tag == 0 ||
-            ::google::protobuf::internal::WireFormatLite::GetTagWireType(tag) ==
-            ::google::protobuf::internal::WireFormatLite::WIRETYPE_END_GROUP) {
-          goto success;
-        }
-        DO_(::google::protobuf::internal::WireFormatLite::SkipField(input, tag));
-        break;
-      }
-    }
-  }
-success:
-  // @@protoc_insertion_point(parse_success:SampleRateRequest)
-  return true;
-failure:
-  // @@protoc_insertion_point(parse_failure:SampleRateRequest)
-  return false;
-#undef DO_
-}
-
-void SampleRateRequest::SerializeWithCachedSizes(
-    ::google::protobuf::io::CodedOutputStream* output) const {
-  // @@protoc_insertion_point(serialize_start:SampleRateRequest)
-  // optional uint32 rate = 1;
-  if (this->rate() != 0) {
-    ::google::protobuf::internal::WireFormatLite::WriteUInt32(1, this->rate(), output);
-  }
-
-  // @@protoc_insertion_point(serialize_end:SampleRateRequest)
-}
-
-::google::protobuf::uint8* SampleRateRequest::InternalSerializeWithCachedSizesToArray(
-    bool deterministic, ::google::protobuf::uint8* target) const {
-  (void)deterministic; // Unused
-  // @@protoc_insertion_point(serialize_to_array_start:SampleRateRequest)
-  // optional uint32 rate = 1;
-  if (this->rate() != 0) {
-    target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(1, this->rate(), target);
-  }
-
-  // @@protoc_insertion_point(serialize_to_array_end:SampleRateRequest)
-  return target;
-}
-
-size_t SampleRateRequest::ByteSizeLong() const {
-// @@protoc_insertion_point(message_byte_size_start:SampleRateRequest)
-  size_t total_size = 0;
-
-  // optional uint32 rate = 1;
-  if (this->rate() != 0) {
-    total_size += 1 +
-      ::google::protobuf::internal::WireFormatLite::UInt32Size(
-        this->rate());
-  }
-
-  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
-  GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = cached_size;
-  GOOGLE_SAFE_CONCURRENT_WRITES_END();
-  return total_size;
-}
-
-void SampleRateRequest::MergeFrom(const ::google::protobuf::Message& from) {
-// @@protoc_insertion_point(generalized_merge_from_start:SampleRateRequest)
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const SampleRateRequest* source =
-      ::google::protobuf::internal::DynamicCastToGenerated<const SampleRateRequest>(
-          &from);
-  if (source == NULL) {
-  // @@protoc_insertion_point(generalized_merge_from_cast_fail:SampleRateRequest)
-    ::google::protobuf::internal::ReflectionOps::Merge(from, this);
-  } else {
-  // @@protoc_insertion_point(generalized_merge_from_cast_success:SampleRateRequest)
-    UnsafeMergeFrom(*source);
-  }
-}
-
-void SampleRateRequest::MergeFrom(const SampleRateRequest& from) {
-// @@protoc_insertion_point(class_specific_merge_from_start:SampleRateRequest)
-  if (GOOGLE_PREDICT_TRUE(&from != this)) {
-    UnsafeMergeFrom(from);
-  } else {
-    MergeFromFail(__LINE__);
-  }
-}
-
-void SampleRateRequest::UnsafeMergeFrom(const SampleRateRequest& from) {
-  GOOGLE_DCHECK(&from != this);
-  if (from.rate() != 0) {
-    set_rate(from.rate());
-  }
-}
-
-void SampleRateRequest::CopyFrom(const ::google::protobuf::Message& from) {
-// @@protoc_insertion_point(generalized_copy_from_start:SampleRateRequest)
-  if (&from == this) return;
-  Clear();
-  MergeFrom(from);
-}
-
-void SampleRateRequest::CopyFrom(const SampleRateRequest& from) {
-// @@protoc_insertion_point(class_specific_copy_from_start:SampleRateRequest)
-  if (&from == this) return;
-  Clear();
-  UnsafeMergeFrom(from);
-}
-
-bool SampleRateRequest::IsInitialized() const {
-
-  return true;
-}
-
-void SampleRateRequest::Swap(SampleRateRequest* other) {
-  if (other == this) return;
-  InternalSwap(other);
-}
-void SampleRateRequest::InternalSwap(SampleRateRequest* other) {
-  std::swap(rate_, other->rate_);
-  _internal_metadata_.Swap(&other->_internal_metadata_);
-  std::swap(_cached_size_, other->_cached_size_);
-}
-
-::google::protobuf::Metadata SampleRateRequest::GetMetadata() const {
-  protobuf_AssignDescriptorsOnce();
-  ::google::protobuf::Metadata metadata;
-  metadata.descriptor = SampleRateRequest_descriptor_;
-  metadata.reflection = SampleRateRequest_reflection_;
-  return metadata;
-}
-
-#if PROTOBUF_INLINE_NOT_IN_HEADERS
-// SampleRateRequest
-
-// optional uint32 rate = 1;
-void SampleRateRequest::clear_rate() {
-  rate_ = 0u;
-}
-::google::protobuf::uint32 SampleRateRequest::rate() const {
-  // @@protoc_insertion_point(field_get:SampleRateRequest.rate)
-  return rate_;
-}
-void SampleRateRequest::set_rate(::google::protobuf::uint32 value) {
-  
-  rate_ = value;
-  // @@protoc_insertion_point(field_set:SampleRateRequest.rate)
-}
-
-inline const SampleRateRequest* SampleRateRequest::internal_default_instance() {
-  return &SampleRateRequest_default_instance_.get();
-}
-#endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
-
-// ===================================================================
-
 const ::google::protobuf::EnumDescriptor* SensitivityRequest_Voltage_descriptor() {
   protobuf_AssignDescriptorsOnce();
   return SensitivityRequest_Voltage_descriptor_;
@@ -1389,7 +1170,6 @@ inline const SensitivityRequest* SensitivityRequest::internal_default_instance()
 const int RequestWrapper::kSequenceFieldNumber;
 const int RequestWrapper::kStartFieldNumber;
 const int RequestWrapper::kStopFieldNumber;
-const int RequestWrapper::kRateFieldNumber;
 const int RequestWrapper::kSensFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
@@ -1405,8 +1185,6 @@ void RequestWrapper::InitAsDefaultInstance() {
       ::StartRequest::internal_default_instance());
   RequestWrapper_default_oneof_instance_->stop_ = const_cast< ::StopRequest*>(
       ::StopRequest::internal_default_instance());
-  RequestWrapper_default_oneof_instance_->rate_ = const_cast< ::SampleRateRequest*>(
-      ::SampleRateRequest::internal_default_instance());
   RequestWrapper_default_oneof_instance_->sens_ = const_cast< ::SensitivityRequest*>(
       ::SensitivityRequest::internal_default_instance());
 }
@@ -1472,10 +1250,6 @@ void RequestWrapper::clear_msg() {
       delete msg_.stop_;
       break;
     }
-    case kRate: {
-      delete msg_.rate_;
-      break;
-    }
     case kSens: {
       delete msg_.sens_;
       break;
@@ -1539,25 +1313,13 @@ bool RequestWrapper::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        goto after_sens;
+        if (input->ExpectTag(34)) goto parse_sens;
         break;
       }
 
-      // optional .SampleRateRequest rate = 4;
+      // optional .SensitivityRequest sens = 4;
       case 4: {
         if (tag == 34) {
-          DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
-               input, mutable_rate()));
-        } else {
-          goto handle_unusual;
-        }
-        if (input->ExpectTag(42)) goto parse_sens;
-        break;
-      }
-
-      // optional .SensitivityRequest sens = 5;
-      case 5: {
-        if (tag == 42) {
          parse_sens:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_sens()));
@@ -1610,16 +1372,10 @@ void RequestWrapper::SerializeWithCachedSizes(
       3, *msg_.stop_, output);
   }
 
-  // optional .SampleRateRequest rate = 4;
-  if (has_rate()) {
-    ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      4, *msg_.rate_, output);
-  }
-
-  // optional .SensitivityRequest sens = 5;
+  // optional .SensitivityRequest sens = 4;
   if (has_sens()) {
     ::google::protobuf::internal::WireFormatLite::WriteMessageMaybeToArray(
-      5, *msg_.sens_, output);
+      4, *msg_.sens_, output);
   }
 
   // @@protoc_insertion_point(serialize_end:RequestWrapper)
@@ -1648,18 +1404,11 @@ void RequestWrapper::SerializeWithCachedSizes(
         3, *msg_.stop_, false, target);
   }
 
-  // optional .SampleRateRequest rate = 4;
-  if (has_rate()) {
-    target = ::google::protobuf::internal::WireFormatLite::
-      InternalWriteMessageNoVirtualToArray(
-        4, *msg_.rate_, false, target);
-  }
-
-  // optional .SensitivityRequest sens = 5;
+  // optional .SensitivityRequest sens = 4;
   if (has_sens()) {
     target = ::google::protobuf::internal::WireFormatLite::
       InternalWriteMessageNoVirtualToArray(
-        5, *msg_.sens_, false, target);
+        4, *msg_.sens_, false, target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:RequestWrapper)
@@ -1692,14 +1441,7 @@ size_t RequestWrapper::ByteSizeLong() const {
           *msg_.stop_);
       break;
     }
-    // optional .SampleRateRequest rate = 4;
-    case kRate: {
-      total_size += 1 +
-        ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
-          *msg_.rate_);
-      break;
-    }
-    // optional .SensitivityRequest sens = 5;
+    // optional .SensitivityRequest sens = 4;
     case kSens: {
       total_size += 1 +
         ::google::protobuf::internal::WireFormatLite::MessageSizeNoVirtual(
@@ -1750,10 +1492,6 @@ void RequestWrapper::UnsafeMergeFrom(const RequestWrapper& from) {
     }
     case kStop: {
       mutable_stop()->::StopRequest::MergeFrom(from.stop());
-      break;
-    }
-    case kRate: {
-      mutable_rate()->::SampleRateRequest::MergeFrom(from.rate());
       break;
     }
     case kSens: {
@@ -1921,55 +1659,7 @@ void RequestWrapper::set_allocated_stop(::StopRequest* stop) {
   // @@protoc_insertion_point(field_set_allocated:RequestWrapper.stop)
 }
 
-// optional .SampleRateRequest rate = 4;
-bool RequestWrapper::has_rate() const {
-  return msg_case() == kRate;
-}
-void RequestWrapper::set_has_rate() {
-  _oneof_case_[0] = kRate;
-}
-void RequestWrapper::clear_rate() {
-  if (has_rate()) {
-    delete msg_.rate_;
-    clear_has_msg();
-  }
-}
- const ::SampleRateRequest& RequestWrapper::rate() const {
-  // @@protoc_insertion_point(field_get:RequestWrapper.rate)
-  return has_rate()
-      ? *msg_.rate_
-      : ::SampleRateRequest::default_instance();
-}
-::SampleRateRequest* RequestWrapper::mutable_rate() {
-  if (!has_rate()) {
-    clear_msg();
-    set_has_rate();
-    msg_.rate_ = new ::SampleRateRequest;
-  }
-  // @@protoc_insertion_point(field_mutable:RequestWrapper.rate)
-  return msg_.rate_;
-}
-::SampleRateRequest* RequestWrapper::release_rate() {
-  // @@protoc_insertion_point(field_release:RequestWrapper.rate)
-  if (has_rate()) {
-    clear_has_msg();
-    ::SampleRateRequest* temp = msg_.rate_;
-    msg_.rate_ = NULL;
-    return temp;
-  } else {
-    return NULL;
-  }
-}
-void RequestWrapper::set_allocated_rate(::SampleRateRequest* rate) {
-  clear_msg();
-  if (rate) {
-    set_has_rate();
-    msg_.rate_ = rate;
-  }
-  // @@protoc_insertion_point(field_set_allocated:RequestWrapper.rate)
-}
-
-// optional .SensitivityRequest sens = 5;
+// optional .SensitivityRequest sens = 4;
 bool RequestWrapper::has_sens() const {
   return msg_case() == kSens;
 }
