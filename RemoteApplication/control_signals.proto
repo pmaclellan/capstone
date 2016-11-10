@@ -3,15 +3,12 @@ syntax = "proto3";
 message StartRequest {
 	uint32 port = 1;
 	uint32 channels = 2;
+	uint32 rate = 3;
 }
 
 message StopRequest {
 	uint32 port = 1;
 	uint32 channels = 2;
-}
-
-message SampleRateRequest {
-	uint32 rate = 1;
 }
 
 message SensitivityRequest {
@@ -28,7 +25,6 @@ message RequestWrapper {
 	oneof msg {
 		StartRequest start = 2;
 		StopRequest stop = 3;
-		SampleRateRequest rate = 4;
-		SensitivityRequest sens = 5;
+		SensitivityRequest sens = 4;
 	}
 }
