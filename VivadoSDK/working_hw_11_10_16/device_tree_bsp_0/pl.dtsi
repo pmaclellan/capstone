@@ -13,13 +13,14 @@
 		compatible = "simple-bus";
 		ranges ;
 		
-		axi_dma_0: dma@40400000 
+		axi_dma_0: axidma@40400000 
 		{
-			compatible = "xlnx,axi-dma";
+			#dma-cells = <1>;
+			compatible = "xlnx,axi-dma-1.00.a";
 			interrupt-parent = <&intc>;
 			interrupts = <0 29 4>;
 			reg = <0x40400000 0x10000>;
-			
+			xlns,include-sg ;
 			dma-channel@40400030 
 			{
 				compatible = "xlnx,axi-dma-s2mm-channel";
@@ -28,6 +29,14 @@
 				xlnx,device-id = <0x0>;
 			};
 		};
+		
+		ezdma0 {
+	        compatible = "ezdma";
+	
+	        dmas = <&axi_dma_0 1>;
+	        dma-names = "axidma_rx";   // used when obtaining reference to above DMA core using dma_request_slave_channel()
+	        ezdma,dirs = <1>;                 // direction of DMA channel: 1 = RX (dev->cpu), 2 = TX (cpu->dev)
+    	};
 		
 		axi_gpio_0: gpio@41200000 
 		{
