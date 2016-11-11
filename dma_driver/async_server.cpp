@@ -139,7 +139,7 @@ int main()
 
 void *control_task(void *dummy)
 {
-    cout << "Thread No: " << pthread_self() << endl;
+    //cout << "Thread No: " << pthread_self() << endl;
     const char * dmaFifoControlPath = "/tmp/dma-fifo-control";
     int fd;
     int data_port = 10002;
@@ -161,7 +161,7 @@ void *control_task(void *dummy)
 	{
 	    continue;
 	}
-	printf("Received size=%d\n", messagesize);
+	//printf("Received size=%d\n", messagesize);
 	vector<char> buffer(messagesize);
 	if (recv(client_fd[0], buffer.data(), buffer.size(), 0) < 0)
 	{
@@ -193,7 +193,7 @@ void *control_task(void *dummy)
 	    	    adc_channels[i+2] = 0;
 		}
 	    }
-	    printf("Number of channels=%d\n", numChannels);
+	    //printf("Number of channels=%d\n", numChannels);
 
 /*	    // Send timestamp and sample rate to fifo
 	    if ((fd = open(dmaFifoControlPath, O_WRONLY)) < 0)
@@ -202,7 +202,9 @@ void *control_task(void *dummy)
 	        return NULL;
 	    }
 	    uint32_t sample_rate = start_request.rate();
+	    uint32_t time_stamp = start_request.timestamp();
 	    write(fd, &sample_rate, sizeof(uint32_t));
+	    write(fd, &time_stamp, sizeof(uint32_t));
 	    close(fd);
 */
 	    // Send size of port number string over control socket
@@ -210,7 +212,7 @@ void *control_task(void *dummy)
 	    request_wrapper.set_allocated_start(&start_request);
 	    request_wrapper.SerializeToString(&ackString);
 	    ackSize = strlen(ackString.c_str());
-	    printf("size = %d\n", ackSize);
+	    //printf("size = %d\n", ackSize);
 	    if (send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
 	    {
 		fprintf(stderr, "Failure Sending Messages\n");
