@@ -1,10 +1,12 @@
 from data_client import DataClient
 
 import multiprocessing as mp
+import numpy as np
+import socket
 import time
 
-host = 'foo'
-port = 5
+host = 'localhost'
+port = 10002
 storage_queue = mp.Queue()
 gui_data_queue = mp.Queue()
 
@@ -29,6 +31,26 @@ dead_sequence = ['\xad', '\xde', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee']
+
+normal_reading = [57005, 40000, 40000, 40000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000,
+                  60000, 60000, 60000, 60000]
+
+corrupt_reading = [57006, 40000, 40000, 40000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000,
+                   60000, 60000, 60000, 60000]
 
 normal_bytearray = bytearray([0xad, 0xde, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
                               0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
@@ -178,6 +200,54 @@ class TestCombinedStages:
         time.sleep(0.2)
         assert not dc.storage_queue.empty()
         assert not dc.gui_queue.empty()
+
+    def test_receive_and_sync_verification(self):
+        dc = DataClient(host, port, storage_queue, gui_data_queue, active_channels)
+
+        server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_sock.bind(('localhost', 10002))
+        server_sock.listen(1)
+        print 'listening on %s:%d' % ('localhost', 10002)
+
+        dc.connect_data_port()
+
+        conn, addr = server_sock.accept()
+        print 'accepted connection from %s:%d' % (addr[0], addr[1])
+
+        input_length = 4
+
+        dc.receive_flag = False
+        for i in range(input_length):
+            for j in range(len(normal_reading)):
+                conn.send(np.uint16(normal_reading[j]))
+
+        while not dc.receive_flag:
+            continue
+
+        assert dc.synchronized
+
+        dc.receive_flag = False
+        for i in range(input_length):
+            for j in range(len(corrupt_reading)):
+                conn.send(np.uint16(corrupt_reading[j]))
+
+        while not dc.receive_flag:
+            continue
+
+        assert not dc.synchronized
+
+        dc.receive_flag = False
+        for i in range(input_length):
+            for j in range(len(normal_reading)):
+                conn.send(np.uint16(normal_reading[j]))
+
+        while not dc.receive_flag:
+            continue
+
+        assert dc.synchronized
+
+        conn.close()
+        server_sock.close()
 
 class TestPerformance:
     def test_fast_path_speed(self):
