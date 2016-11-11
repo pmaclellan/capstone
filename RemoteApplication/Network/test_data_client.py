@@ -30,6 +30,26 @@ dead_sequence = ['\xad', '\xde', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa', '\xaa',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee',
                  '\xff', '\xee', '\xff', '\xee', '\xff', '\xee', '\xff', '\xee']
 
+normal_bytearray = bytearray([0xad, 0xde, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee])
+
+corrupt_bytearray = bytearray([0xaf, 0xbe, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                              0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee])
+
 parser_input = [57005, 187649984473770,
                 61183, 61183, 61183, 61183,
                 61183, 61183, 61183, 61183,
@@ -160,6 +180,35 @@ class TestCombinedStages:
         assert not dc.gui_queue.empty()
 
 class TestPerformance:
+    def test_fast_path_speed(self):
+        dc = DataClient(host, port, storage_queue, gui_data_queue, active_channels)
+
+        dc.start_sync_verification_thread()
+        dc.synchronized = True
+
+        print normal_bytearray[0]
+
+        input_length = 1000
+
+        start = time.time()
+
+        for i in range(input_length):
+            dc.fast_path_sender.send(normal_bytearray)
+
+        dc.fast_path_sender.send(corrupt_bytearray)
+
+        while dc.fast_path_receiver.poll():
+            # wait for the parser to finish processing the input
+            continue
+
+        assert not dc.synchronized
+
+        elapsed = time.time() - start
+
+        speed = 1 / (elapsed / input_length)
+
+        print '\n\nSync Recovery Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+
     def test_sync_recovery_speed(self):
         dc = DataClient(host, port, storage_queue, gui_data_queue, active_channels)
 

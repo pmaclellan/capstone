@@ -19,8 +19,11 @@ class DataClient():
         # list of channel strings (e.g. '0.0')
         self.active_channels = active_channels
 
-        # buffer for incoming data stream from socket
-        self.incoming_queue = mp.Queue()
+        # pipe for passing full readings from socket listener to first stage of pipeline
+        self.fast_path_receiver, self.fast_path_sender = mp.Pipe(duplex=False)
+
+        # pipe for passing individual bytes from socket listener to sync & recovery filter
+        self.slow_path_receiver, self.slow_path_sender = mp.Pipe(duplex=False)
 
         # buffer between stream processing threads
         self.pipeline_queue = mp.Queue()
@@ -28,6 +31,7 @@ class DataClient():
         self.recv_stop_event = threading.Event()
         self.receiver_thread = threading.Thread(target=self.receive_data, args=[self.recv_stop_event])
         self.sync_recovery_thread = threading.Thread(target=self.synchronize_stream, args=[self.recv_stop_event])
+        self.sync_verification_thread = threading.Thread(target=self.verify_synchronization, args=[self.recv_stop_event])
         self.parser_thread = threading.Thread(target=self.parse_readings, args=[self.recv_stop_event])
 
         self.host = host
@@ -37,11 +41,15 @@ class DataClient():
 
     def start_receiver_thread(self):
         self.receiver_thread.start()
+
     def stop_data_threads(self):
         self.recv_stop_event.set()
 
     def start_sync_recovery_thread(self):
         self.sync_recovery_thread.start()
+
+    def start_sync_verification_thread(self):
+        self.sync_verification_thread.start()
 
     def start_parser_thread(self):
         self.parser_thread.start()
@@ -67,9 +75,36 @@ class DataClient():
     def receive_data(self, *args):
         stop_event = args[0]
         while not stop_event.is_set():
-            byte = self.sock.recv(1)
-            if byte != '':
-                self.incoming_queue.put(byte)
+            # If we are already in sync, take the fast path where we process readings
+            # in full and simply check that the DEAD is where we expect it to be. If
+            # it is not where we expect it, synchronized will be set to false and the
+            # next iteration will send each byte through the recovery filter.
+            if self.synchronized:
+                # create a buffer to store DEAD, TS, and all channel values
+                reading_buffer = bytearray(len(self.active_channels) * 2 + 8)
+                self.sock.recv_into(reading_buffer)
+                self.fast_path_sender.send(reading_buffer)
+            else:
+                byte = self.sock.recv(1)
+                if byte != '':
+                    self.slow_path_sender.send(byte)
+
+    def verify_synchronization(self, *args):
+        stop_event = args[0]
+
+        while not stop_event.is_set():
+            if self.fast_path_receiver.poll():
+                reading = self.fast_path_receiver.recv()
+                assert len(reading) == len(self.active_channels) * 2 + 8
+                if reading[0] == 173 and reading[1] == 222: # 173 == 0xAD, 222 == 0xDE
+                    # all good, found DEAD where we expected
+                    self.pipeline_queue.put(reading)
+                else:
+                    self.synchronized = False
+            else:
+                # nothing to read yet
+                continue
+
 
     def synchronize_stream(self, *args):
         # print '\n\nsync thread started'
