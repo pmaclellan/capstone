@@ -12,6 +12,7 @@
 #include "control_signals.pb.h"
 #include <iostream>
 #include <pthread.h>
+#include <sys/stat.h>
 
 #define CTRLPORT 10001
 #define DATAPORT 10002
@@ -27,11 +28,11 @@ void *data_task(void *);
 int client_fd[2], socket_fd[2];
 int adc_channels[34];
 int numChannels;
+bool read_data;
 
 RequestWrapper request_wrapper = RequestWrapper();
 StartRequest start_request = StartRequest();
 StopRequest stop_request = StopRequest();
-SampleRateRequest sample_rate_request = SampleRateRequest();
 SensitivityRequest sensitivity_request = SensitivityRequest();
 
 int main()
@@ -144,10 +145,13 @@ void *control_task(void *dummy)
     int data_port = 10002;
     std::string ackString;
     uint16_t ackSize;
+    open("/dev/mem", O_RDWR);
+    mkfifo(dmaFifoControlPath, 0666);
+
     while(1)
     {
 	// Read incoming message
-	uint16_t messagesize = 0;
+	uint16_t messagesize;
 	int receive = recv(client_fd[0], &messagesize, sizeof(messagesize), 0);
 	if (receive < 0)
 	{
@@ -168,6 +172,7 @@ void *control_task(void *dummy)
 	    throw exception();
 	}
 	printf("Received wrapper with sequence=%d\n", request_wrapper.sequence());
+
 	// Complete functions based on which request was sent
 	if (request_wrapper.has_start()) // Start Request
 	{
@@ -190,6 +195,16 @@ void *control_task(void *dummy)
 	    }
 	    printf("Number of channels=%d\n", numChannels);
 
+/*	    // Send timestamp and sample rate to fifo
+	    if ((fd = open(dmaFifoControlPath, O_WRONLY)) < 0)
+	    {
+		error("ERROR opening fifo failure");
+	        return NULL;
+	    }
+	    uint32_t sample_rate = start_request.rate();
+	    write(fd, &sample_rate, sizeof(uint32_t));
+	    close(fd);
+*/
 	    // Send size of port number string over control socket
 	    start_request.set_port(data_port);
 	    request_wrapper.set_allocated_start(&start_request);
@@ -210,28 +225,22 @@ void *control_task(void *dummy)
 		close(client_fd[0]);
 		return NULL;
 	    }
+	    request_wrapper.release_start();
+
+	    read_data = true;
 	}
 	else if (request_wrapper.has_stop()) // Stop Request
 	{
 	    stop_request = request_wrapper.stop();
+	    read_data = false;
 	    printf("With port=%d and channels=%d\n", stop_request.port(), stop_request.channels());
-	}
-	else if (request_wrapper.has_rate()) // Sample Rate Request
-	{
-	    sample_rate_request = request_wrapper.rate();
-	    if ((fd = open(dmaFifoControlPath, O_WRONLY) < 0))
-	    {
-		error("ERROR Could not open control fifo");
-		return NULL;
-	    }
-	    uint32_t rate = sample_rate_request.rate();
-	    write(fd, &rate, sizeof(uint32_t));
-	    close(fd);
-	    printf("With rate=%d\n", sample_rate_request.rate());
+
+	    request_wrapper.release_stop();
 	}
 	else if (request_wrapper.has_sens()) // Sensitivity Request
 	{
 	    sensitivity_request = request_wrapper.sens();
+	    request_wrapper.release_sens();
 	}
     }
 }
@@ -247,35 +256,38 @@ void *data_task(void *dummy)
     {
         bool send_data = false;	// send_data set only when buffer reads 0xDEAD
 	fd = open(myfifo, O_RDONLY);
-	// Try to read 34 bytes of data (DEAD, timestamp, 32 channels)
-	for(int i = 0; i < 34; i++)
-    	{
-	    read(fd, &buf, sizeof(buf));
-	    // If read buffer is 0xDEAD, set sending flag to true
-	    // Then check if 0xDEAD is at beginning of data segment
-	    if (buf == 57005 && (counter % (numChannels+2) == 0))
-	    {
-		send_data = true;
+	if (read_data)
+	{
+	    // Try to read 34 bytes of data (DEAD, timestamp, 32 channels)
+	    for(int i = 0; i < 34; i++)
+    	    {
+	        read(fd, &buf, sizeof(buf));
+	        // If read buffer is 0xDEAD, set sending flag to true
+	        // Then check if 0xDEAD is at beginning of data segment
+	        if (buf == 57005 && (counter % (numChannels+2) == 0))
+	    	{
+		    send_data = true;
+	    	}
+	    	// Send the buffer to client as it is received if adc channel is active
+	    	if (send_data && (adc_channels[i] == 1))
+	    	{
+		    printf("Sending: %d\n", buf);
+	            if (send(client_fd[1], &buf, sizeof(buf), 0) < 0)
+		    {
+		    	fprintf(stderr, "Failure Sending Messages\n");
+		    	close(client_fd[1]);
+		    	return NULL;
+		    }
+		    counter++;
+	    	}
+	        // If sending flag is false, skip over buffer
+	    	else
+	    	{
+		    printf("skip\n");
+	    	}
 	    }
-	    // Send the buffer to client as it is received if adc channel is active
-	    if (send_data && (adc_channels[i] == 1))
-	    {
-		printf("Sending: %d\n", buf);
-	        if (send(client_fd[1], &buf, sizeof(buf), 0) < 0)
-		{
-		    fprintf(stderr, "Failure Sending Messages\n");
-		    close(client_fd[1]);
-		    return NULL;
-		}
-		counter++;
-	    }
-	    // If sending flag is false, skip over buffer
-	    else
-	    {
-		printf("skip\n");
-	    }
+	    close(fd);
 	}
-	close(fd);
     }
 }
 
