@@ -39,6 +39,7 @@ int main()
 {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
+    // Server allows 3 separate pairs of control/data connections
     pthread_t threadA[3];
     
     for (int i = 0; i < 34; i++)
@@ -103,7 +104,7 @@ int main()
     // While loop waiting for connection
     while (thread_num < 3)
     {
-	printf("Listening\n");
+	printf("Listening for control connection\n");
 	if ((client_fd[0] = accept(socket_fd[0], (struct sockaddr *)&dest, &size)) < 0)
 	{
 	    error("ERROR acception failure");
@@ -113,6 +114,7 @@ int main()
 	// Give first, control connection to thread 0
 	pthread_create(&threadA[thread_num], NULL, control_task, NULL);
 	
+	printf("Listening for data connection\n");
 	if ((client_fd[1] = accept(socket_fd[1], (struct sockaddr *)&dest, &size)) < 0)
 	{
 	    error("ERROR acception failure");
@@ -139,14 +141,13 @@ int main()
 
 void *control_task(void *dummy)
 {
-    //cout << "Thread No: " << pthread_self() << endl;
-    const char * dmaFifoControlPath = "/tmp/dma-fifo-control";
-    int fd;
+    const char * dmaFifoTxPath = "/tmp/server2control";
+    const char * dmaFifoRxPath = "/tmp/control2server";
+    int txfd, rxfd;
     int data_port = 10002;
     std::string ackString;
     uint16_t ackSize;
-    open("/dev/mem", O_RDWR);
-    mkfifo(dmaFifoControlPath, 0666);
+    mkfifo(dmaFifoTxPath, 0666);
 
     while(1)
     {
@@ -161,7 +162,6 @@ void *control_task(void *dummy)
 	{
 	    continue;
 	}
-	//printf("Received size=%d\n", messagesize);
 	vector<char> buffer(messagesize);
 	if (recv(client_fd[0], buffer.data(), buffer.size(), 0) < 0)
 	{
@@ -171,11 +171,12 @@ void *control_task(void *dummy)
 	{
 	    throw exception();
 	}
-	printf("Received wrapper with sequence=%d\n", request_wrapper.sequence());
+	printf("Received wrapper with sequence #%d\n", request_wrapper.sequence());
 
 	// Complete functions based on which request was sent
 	if (request_wrapper.has_start()) // Start Request
 	{
+	    printf("Start Request\n");
 	    start_request = request_wrapper.start();
 	    printf("With port=%d and channels=%d\n", start_request.port(), start_request.channels());
 	
@@ -193,26 +194,32 @@ void *control_task(void *dummy)
 	    	    adc_channels[i+2] = 0;
 		}
 	    }
-	    //printf("Number of channels=%d\n", numChannels);
 
-/*	    // Send timestamp and sample rate to fifo
-	    if ((fd = open(dmaFifoControlPath, O_WRONLY)) < 0)
+	    // Send sample rate to fifo
+	    if ((txfd = open(dmaFifoTxPath, O_WRONLY)) < 0)
 	    {
 		error("ERROR opening fifo failure");
 	        return NULL;
 	    }
+	    uint32_t code = 0;
 	    uint32_t sample_rate = start_request.rate();
-	    uint32_t time_stamp = start_request.timestamp();
-	    write(fd, &sample_rate, sizeof(uint32_t));
-	    write(fd, &time_stamp, sizeof(uint32_t));
-	    close(fd);
-*/
+	    uint64_t test = code<<32 + sample_rate;
+	    write(txfd, &test, sizeof(uint64_t));
+
+	    // Read timestamp from fifo
+	    if ((rxfd = open(dmaFifoRxPath, O_RDONLY)) < 0)
+	    {
+		error("ERROR opening fifo failure");
+	    }
+	    uint64_t buff;
+	    read(rxfd, &buff, sizeof(buff));
+	    start_request.set_timestamp(buff);
+
 	    // Send size of port number string over control socket
 	    start_request.set_port(data_port);
 	    request_wrapper.set_allocated_start(&start_request);
 	    request_wrapper.SerializeToString(&ackString);
 	    ackSize = strlen(ackString.c_str());
-	    //printf("size = %d\n", ackSize);
 	    if (send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
 	    {
 		fprintf(stderr, "Failure Sending Messages\n");
@@ -227,21 +234,61 @@ void *control_task(void *dummy)
 		close(client_fd[0]);
 		return NULL;
 	    }
+	    
 	    request_wrapper.release_start();
 
 	    read_data = true;
 	}
 	else if (request_wrapper.has_stop()) // Stop Request
 	{
+	    printf("Stop Request\n");
 	    stop_request = request_wrapper.stop();
 	    read_data = false;
-	    printf("With port=%d and channels=%d\n", stop_request.port(), stop_request.channels());
+
+	    // Send stop to fifo
+	    if ((txfd = open(dmaFifoTxPath, O_WRONLY)) < 0)
+	    {
+		error("ERROR opening fifo failure");
+		return NULL;
+	    }
+	    uint32_t code = 1;
+	    uint32_t sample_rate = start_request.rate();
+	    uint64_t test = code<<32 + sample_rate;
+	    write(txfd, &test, sizeof(test));
+	    close(txfd);
+
+	    // Read ack from fifo
+	    if ((rxfd = open(dmaFifoRxPath, O_RDONLY)) < 0)
+	    {
+		error("ERROR opening fifo failure");
+		return NULL;
+	    }
+	    uint64_t buff;
+	    read(rxfd, &buff, sizeof(buff));
+	    
+	    if (buff == 1)
+	    {
+		// Send ACK back to client
+		request_wrapper.SerializeToString(&ackString);
+	        ackSize = strlen(ackString.c_str());
+	        if (send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
+	        {
+		    fprintf(stderr, "Failure Sending Messages\n");
+		    close(client_fd[0]);
+		    return NULL;
+	    	}
+	    }
+	    else 
+	    {
+		// Do something
+	    }
 
 	    request_wrapper.release_stop();
 	}
 	else if (request_wrapper.has_sens()) // Sensitivity Request
 	{
 	    sensitivity_request = request_wrapper.sens();
+
 	    request_wrapper.release_sens();
 	}
     }
@@ -249,7 +296,6 @@ void *control_task(void *dummy)
 
 void *data_task(void *dummy)
 {
-    cout << "Thread No: " << pthread_self() << endl;
     const char * myfifo = "/tmp/dma-fifo";
     int fd;
     int counter = 0;

@@ -49,10 +49,11 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       "control_signals.proto");
   GOOGLE_CHECK(file != NULL);
   StartRequest_descriptor_ = file->message_type(0);
-  static const int StartRequest_offsets_[3] = {
+  static const int StartRequest_offsets_[4] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, port_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, channels_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, rate_),
+    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, timestamp_),
   };
   StartRequest_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
@@ -175,16 +176,17 @@ void protobuf_AddDesc_control_5fsignals_2eproto_impl() {
 
   protobuf_InitDefaults_control_5fsignals_2eproto();
   ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
-    "\n\025control_signals.proto\"<\n\014StartRequest\022"
+    "\n\025control_signals.proto\"O\n\014StartRequest\022"
     "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\022\014\n\004rate\030"
-    "\003 \001(\r\"-\n\013StopRequest\022\014\n\004port\030\001 \001(\r\022\020\n\010ch"
-    "annels\030\002 \001(\r\"j\n\022SensitivityRequest\022,\n\007vo"
-    "ltage\030\001 \001(\0162\033.SensitivityRequest.Voltage"
-    "\"&\n\007Voltage\022\010\n\004FIVE\020\000\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002"
-    "\"\214\001\n\016RequestWrapper\022\020\n\010sequence\030\001 \001(\r\022\036\n"
-    "\005start\030\002 \001(\0132\r.StartRequestH\000\022\034\n\004stop\030\003 "
-    "\001(\0132\014.StopRequestH\000\022#\n\004sens\030\004 \001(\0132\023.Sens"
-    "itivityRequestH\000B\005\n\003msgb\006proto3", 391);
+    "\003 \001(\r\022\021\n\ttimestamp\030\004 \001(\004\"-\n\013StopRequest\022"
+    "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\"j\n\022Sensi"
+    "tivityRequest\022,\n\007voltage\030\001 \001(\0162\033.Sensiti"
+    "vityRequest.Voltage\"&\n\007Voltage\022\010\n\004FIVE\020\000"
+    "\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002\"\214\001\n\016RequestWrapper\022\020"
+    "\n\010sequence\030\001 \001(\r\022\036\n\005start\030\002 \001(\0132\r.StartR"
+    "equestH\000\022\034\n\004stop\030\003 \001(\0132\014.StopRequestH\000\022#"
+    "\n\004sens\030\004 \001(\0132\023.SensitivityRequestH\000B\005\n\003m"
+    "sgb\006proto3", 410);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "control_signals.proto", &protobuf_RegisterTypes);
   ::google::protobuf::internal::OnShutdown(&protobuf_ShutdownFile_control_5fsignals_2eproto);
@@ -218,6 +220,7 @@ static void MergeFromFail(int line) {
 const int StartRequest::kPortFieldNumber;
 const int StartRequest::kChannelsFieldNumber;
 const int StartRequest::kRateFieldNumber;
+const int StartRequest::kTimestampFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 StartRequest::StartRequest()
@@ -352,6 +355,21 @@ bool StartRequest::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
+        if (input->ExpectTag(32)) goto parse_timestamp;
+        break;
+      }
+
+      // optional uint64 timestamp = 4;
+      case 4: {
+        if (tag == 32) {
+         parse_timestamp:
+
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
+                 input, &timestamp_)));
+        } else {
+          goto handle_unusual;
+        }
         if (input->ExpectAtEnd()) goto success;
         break;
       }
@@ -395,6 +413,11 @@ void StartRequest::SerializeWithCachedSizes(
     ::google::protobuf::internal::WireFormatLite::WriteUInt32(3, this->rate(), output);
   }
 
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    ::google::protobuf::internal::WireFormatLite::WriteUInt64(4, this->timestamp(), output);
+  }
+
   // @@protoc_insertion_point(serialize_end:StartRequest)
 }
 
@@ -415,6 +438,11 @@ void StartRequest::SerializeWithCachedSizes(
   // optional uint32 rate = 3;
   if (this->rate() != 0) {
     target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(3, this->rate(), target);
+  }
+
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(4, this->timestamp(), target);
   }
 
   // @@protoc_insertion_point(serialize_to_array_end:StartRequest)
@@ -444,6 +472,13 @@ size_t StartRequest::ByteSizeLong() const {
     total_size += 1 +
       ::google::protobuf::internal::WireFormatLite::UInt32Size(
         this->rate());
+  }
+
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->timestamp());
   }
 
   int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
@@ -488,6 +523,9 @@ void StartRequest::UnsafeMergeFrom(const StartRequest& from) {
   if (from.rate() != 0) {
     set_rate(from.rate());
   }
+  if (from.timestamp() != 0) {
+    set_timestamp(from.timestamp());
+  }
 }
 
 void StartRequest::CopyFrom(const ::google::protobuf::Message& from) {
@@ -517,6 +555,7 @@ void StartRequest::InternalSwap(StartRequest* other) {
   std::swap(port_, other->port_);
   std::swap(channels_, other->channels_);
   std::swap(rate_, other->rate_);
+  std::swap(timestamp_, other->timestamp_);
   _internal_metadata_.Swap(&other->_internal_metadata_);
   std::swap(_cached_size_, other->_cached_size_);
 }
@@ -572,6 +611,20 @@ void StartRequest::set_rate(::google::protobuf::uint32 value) {
   
   rate_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.rate)
+}
+
+// optional uint64 timestamp = 4;
+void StartRequest::clear_timestamp() {
+  timestamp_ = GOOGLE_ULONGLONG(0);
+}
+::google::protobuf::uint64 StartRequest::timestamp() const {
+  // @@protoc_insertion_point(field_get:StartRequest.timestamp)
+  return timestamp_;
+}
+void StartRequest::set_timestamp(::google::protobuf::uint64 value) {
+  
+  timestamp_ = value;
+  // @@protoc_insertion_point(field_set:StartRequest.timestamp)
 }
 
 inline const StartRequest* StartRequest::internal_default_instance() {

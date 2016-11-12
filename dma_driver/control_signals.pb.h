@@ -146,12 +146,19 @@ class StartRequest : public ::google::protobuf::Message /* @@protoc_insertion_po
   ::google::protobuf::uint32 rate() const;
   void set_rate(::google::protobuf::uint32 value);
 
+  // optional uint64 timestamp = 4;
+  void clear_timestamp();
+  static const int kTimestampFieldNumber = 4;
+  ::google::protobuf::uint64 timestamp() const;
+  void set_timestamp(::google::protobuf::uint64 value);
+
   // @@protoc_insertion_point(class_scope:StartRequest)
  private:
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::uint32 port_;
   ::google::protobuf::uint32 channels_;
+  ::google::protobuf::uint64 timestamp_;
   ::google::protobuf::uint32 rate_;
   mutable int _cached_size_;
   friend void  protobuf_InitDefaults_control_5fsignals_2eproto_impl();
@@ -554,6 +561,20 @@ inline void StartRequest::set_rate(::google::protobuf::uint32 value) {
   
   rate_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.rate)
+}
+
+// optional uint64 timestamp = 4;
+inline void StartRequest::clear_timestamp() {
+  timestamp_ = GOOGLE_ULONGLONG(0);
+}
+inline ::google::protobuf::uint64 StartRequest::timestamp() const {
+  // @@protoc_insertion_point(field_get:StartRequest.timestamp)
+  return timestamp_;
+}
+inline void StartRequest::set_timestamp(::google::protobuf::uint64 value) {
+  
+  timestamp_ = value;
+  // @@protoc_insertion_point(field_set:StartRequest.timestamp)
 }
 
 inline const StartRequest* StartRequest::internal_default_instance() {
