@@ -10,8 +10,10 @@
 #ifndef SRC_AXI_GPIO_H_
 #define SRC_AXI_GPIO_H_
 
+#include <stdint.h>
+#include <inttypes.h>
+
 // Function prototypes
-void configGpio(const char * gpioNumber, const char * direction,
-        const int value);
+void configGpio(int address, int size, int value);
 
 #endif /* SRC_AXI_GPIO_H_ */

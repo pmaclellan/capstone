@@ -36,33 +36,33 @@
 int main(void)
 {
     // Before config starts, set everything to 0
-    configGpio("905", "out", "0");
-    configGpio("904", "out", "0");
-    configGpio("888", "out", "0");
-    configGpio("872", "out", "0");
-    configGpio("864", "out", "0");
-    configGpio("848", "out", "0");
+    configGpio(0x41200000, 8, 0);
+    configGpio(0x41200008, 8, 0);
+    configGpio(0x41210000, 8, 0);
+    configGpio(0x41210008, 8, 0);
+    configGpio(0x41220000, 8, 0);
+    configGpio(0x41220008, 8, 0);
 
     // Begin actual config
     printf("Begin DMA Configuration\n");
 
-    // (GPIO 888) Configure SPI clock:
+    // (0x41210000) Configure SPI clock:
     //      2 = 25MHz
-    // (GPIO 872) Configure Sample Frequency:
+    // (0x41210008) Configure Sample Frequency:
     //      Sample freq = 100MHz / value (ex. 100MHz / 1000 = 100kHz)
-    // (GPIO 848) Configure the number of packets / frame:
+    // (0x41220008) Configure the number of packets / frame:
     //      NOTE: Setting this to 4 will actually make it send 5.5 packets. The
     //      last 1.5 packets are garbage that this app will need to throw out.
-    // (GPIO 905) Timestamp reset:
+    // (0x41200000) Timestamp reset:
     //      Set high, then low to reset the timestamp
-    // (GPIO 904) ADC Enable:
+    // (0x41200008) ADC Enable:
     //      Set high to enable ADC
-    configGpio("888", "out", "2");
-    configGpio("872", "out", "1000");
-    configGpio("848", "out", "4");
-    configGpio("904", "out", "1");
-    configGpio("905", "out", "1");
-    configGpio("905", "out", "0");
+    configGpio(0x41210000, 16, 2);
+    configGpio(0x41210008, 16, 1000);
+    configGpio(0x41220008, 16, 4);
+    configGpio(0x41200000, 8, 1);
+    configGpio(0x41200000, 8, 0);
+    configGpio(0x41200008, 8, 1);
 
     // Await start command from server
     printf("Awaiting server start command...\n");
@@ -79,21 +79,44 @@ int main(void)
     int axiDmaFd = open("/dev/axidma_rx", O_RDONLY);
 
     // Toggle LED to signal successful DMA config
-    while(1)
+    int count = 0;
+    while(count < 4)
     {
         read(axiDmaFd, buf, bufSize);
         printf("Buffer contents are:\n");
         int i;
         for (i = 0; i < (36); i++)
         {
-            printf("buf[%d] = 0x%" PRIx64 "\n", i, buf[i]);
+            if (i % 9 == 0)
+            {
+                printf("buf[%d] = 0x%" PRIx64 "\n", i, buf[i]);
+            }
         }
-
-        configGpio("864", "out", "0");
-        sleep(1);
-        configGpio("864", "out", "1");
-        sleep(1);
+        count++;
     }
+
+    printf("\n\n RESETTING \n\n");
+    configGpio(0x41200008, 8, 0);
+    configGpio(0x41200008, 8, 1);
+    configGpio(0x41200000, 8, 1);
+    configGpio(0x41200000, 8, 0);
+
+    count = 0;
+    while(count < 4)
+    {
+        read(axiDmaFd, buf, bufSize);
+        printf("Buffer contents are:\n");
+        int i;
+        for (i = 0; i < (36); i++)
+        {
+            if (i % 9 == 0)
+            {
+                printf("buf[%d] = 0x%" PRIx64 "\n", i, buf[i]);
+            }
+        }
+        count++;
+    }
+
 
     close(axiDmaFd);
     free(buf);

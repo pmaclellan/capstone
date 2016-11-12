@@ -1,0 +1,16 @@
+#! /bin/sh
+#
+# custom        This script initializes custom software for DAQuLA
+#
+# Version:      @(#)urandom  1.33  22-Jun-1998  miquels@cistron.nl
+#
+#. /etc/default/rcS
+
+case "$1" in
+        start|"")
+                # Insert the ezdma
+                insmod /home/drivers/ezdma.ko
+                ;;
+        stop)
+                ;;
+esac

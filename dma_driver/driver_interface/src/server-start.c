@@ -5,6 +5,9 @@
  *      Author: dominic
  */
 
+#include <stdint.h>
+#include <unistd.h>
+#include <inttypes.h>
 #include <fcntl.h>
 
 int serverStart()
