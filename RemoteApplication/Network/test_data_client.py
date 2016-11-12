@@ -298,6 +298,7 @@ class TestCombinedStages:
 
         assert dc.synchronized
 
+        dc.close_data_port()
         conn.close()
         server_sock.close()
 
@@ -315,7 +316,7 @@ class TestPerformance:
         conn, addr = server_sock.accept()
         print 'accepted connection from %s:%d' % (addr[0], addr[1])
 
-        input_length = 10000
+        input_length = 1000
 
         with dc.expected_readings_passed_lock:
             dc.expected_readings_passed = input_length - 2
@@ -335,62 +336,75 @@ class TestPerformance:
 
         print '\n\nReceive and Verify Stages: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
 
+        dc.close_data_port()
         conn.close()
         server_sock.close()
 
-    @pytest.mark.skip
-    def test_fast_path_speed(self):
+    def test_sync_verify_speed(self):
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
         dc.start_sync_verification_thread()
         dc.synchronized = True
 
-        print normal_bytearray[0]
-
         input_length = 1000
+
+        with dc.expected_readings_passed_lock:
+            dc.expected_readings_passed = input_length
 
         start = time.time()
 
         for i in range(input_length):
             dc.fast_path_sender.send(normal_bytearray)
+            with dc.frame_to_be_verified_cond:
+                dc.frame_to_be_verified_cond.notify()
 
-        dc.fast_path_sender.send(corrupt_bytearray)
-
-        while dc.fast_path_receiver.poll():
-            # wait for the parser to finish processing the input
-            continue
-
-        assert not dc.synchronized
+        with dc.sync_filter_done_cond:
+            dc.sync_filter_done_cond.wait()
 
         elapsed = time.time() - start
 
         speed = 1 / (elapsed / input_length)
 
-        print '\n\nSync Recovery Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+        print '\n\nSync Verification Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
 
-    @pytest.mark.skip
-    def test_sync_recovery_speed(self):
+    def test_receive_recovery_speed(self):
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
-        dc.start_sync_recovery_thread()
+        server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_sock.bind(('localhost', 10002))
+        server_sock.listen(1)
+        print 'listening on %s:%d' % ('localhost', 10002)
+
+        dc.connect_data_port()
+
+        conn, addr = server_sock.accept()
+        print 'accepted connection from %s:%d' % (addr[0], addr[1])
 
         input_length = 1000
+
+        bytes_sent = 0
 
         start = time.time()
 
         for i in range(input_length):
-            for x in normal_sequence:
-                dc.incoming_queue.put(x)
+            for j in range(len(normal_reading)):
+                bytes_sent += conn.send(np.uint16(normal_reading[j]))
 
-        while not dc.incoming_queue.empty():
-            # wait for the parser to finish processing the input
-            continue
+        with dc.expected_bytes_sent_lock:
+            dc.expected_bytes_sent = bytes_sent
+
+        with dc.receiver_done_cond:
+            dc.receiver_done_cond.wait()
 
         elapsed = time.time() - start
 
         speed = 1 / (elapsed / input_length)
 
-        print '\n\nSync Recovery Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+        print '\n\nReceive Recover Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+
+        dc.close_data_port()
+        conn.close()
+        server_sock.close()
 
     @pytest.mark.skip
     def test_parser_speed(self):
