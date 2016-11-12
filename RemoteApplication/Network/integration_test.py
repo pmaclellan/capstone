@@ -21,6 +21,7 @@ nc = NetworkController(stg_queue, from_gui_queue, to_gui_queue, gui_data_queue)
 startRequest = control_signals_pb2.StartRequest()
 startRequest.port = 10002
 startRequest.channels = 0xFFFFFFFF
+startRequest.rate = 200000
 
 # then insert it into a request wrapper
 requestWrapper = control_signals_pb2.RequestWrapper()
