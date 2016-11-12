@@ -347,14 +347,19 @@ class TestPerformance:
         dc.synchronized = True
 
         input_length = 1000
+        chunk_size  = 20
 
         with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = input_length
+            dc.expected_readings_passed = input_length / chunk_size
+
+        normal_bytearray_chunk = bytearray(0)
+        for i in range(chunk_size):
+            normal_bytearray_chunk += normal_bytearray
 
         start = time.time()
 
-        for i in range(input_length):
-            dc.fast_path_sender.send(normal_bytearray)
+        for i in range(input_length / chunk_size):
+            dc.fast_path_sender.send(normal_bytearray_chunk)
             with dc.frame_to_be_verified_cond:
                 dc.frame_to_be_verified_cond.notify()
 

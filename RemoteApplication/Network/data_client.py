@@ -49,6 +49,8 @@ class DataClient():
         self.synchronized = False
         self.synchronized_lock = threading.Lock()
 
+        self.chunk_size = 20
+
         # for testing purposes only
         self.bytes_received = 0
         self.expected_bytes_sent = 99999999
@@ -105,18 +107,19 @@ class DataClient():
             # it is not where we expect it, synchronized will be set to false and the
             # next iteration will send each byte through the recovery filter.
             with self.synchronized_lock:
-                sync = self.synchronized
-            if sync:
+                in_sync = self.synchronized
+
+            if in_sync:
                 # create a buffer to store DEAD, TS, and all channel values
                 # if we didn't receive a full reading last time, subtract the carryover length from the total
-                reading_buffer = bytearray(len(self.active_channels) * 2 + 8 - len(carryover_buffer))
+                reading_buffer = bytearray((len(self.active_channels) + 4) * 2 * self.chunk_size - len(carryover_buffer))
 
                 # check to see if there is data available before calling recv_into() so we don't hang
                 readable, writable, exceptional = select.select([self.sock], [], [], 1)
                 if self.sock in readable:
                     self.sock.recv_into(reading_buffer)
                     reading_buffer = carryover_buffer + reading_buffer
-                    assert len(reading_buffer) == len(self.active_channels) * 2 + 8
+                    assert len(reading_buffer) == (len(self.active_channels) + 4) * 2 * self.chunk_size
 
                 if reading_buffer[-1] != 0:
                     bytes_received += len(reading_buffer)
@@ -244,7 +247,7 @@ class DataClient():
 
             if self.fast_path_receiver.poll():
                 reading = self.fast_path_receiver.recv()
-                assert len(reading) == len(self.active_channels) * 2 + 8
+                assert len(reading) == (len(self.active_channels) + 4) * 2 * self.chunk_size
                 if reading[0] == 173 and reading[1] == 222: # 173 == 0xAD, 222 == 0xDE
                     # all good, found DEAD where we expected
                     # self.pipeline_sender.send(reading)
