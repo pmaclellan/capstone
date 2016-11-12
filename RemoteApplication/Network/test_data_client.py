@@ -207,6 +207,7 @@ class TestCombinedStages:
         assert not dc.storage_queue.empty()
         assert not dc.gui_queue.empty()
 
+    @pytest.mark.skip
     def test_receive_and_sync_verification(self):
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
@@ -226,8 +227,8 @@ class TestCombinedStages:
         with dc.expected_bytes_sent_lock:
             dc.expected_bytes_sent = 99999999
 
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = 99999999
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = 99999999
 
         for i in range(input_length):
             for j in range(len(normal_reading)):
@@ -237,8 +238,8 @@ class TestCombinedStages:
             dc.expected_bytes_sent = bytes_sent
         print 'Test: finished sending part 1, bytes_sent = %d' % bytes_sent
         # first two readings will get dropped by sync. recovery filter
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = input_length - 2
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = input_length - 2
 
         # with dc.receiver_done_cond:
         #     dc.receiver_done_cond.wait()
@@ -273,8 +274,8 @@ class TestCombinedStages:
         with dc.expected_bytes_sent_lock:
             dc.expected_bytes_sent = 99999999
 
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = 99999999
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = 99999999
 
         for i in range(input_length):
             for j in range(len(normal_reading)):
@@ -285,12 +286,8 @@ class TestCombinedStages:
         with dc.expected_bytes_sent_lock:
             dc.expected_bytes_sent = bytes_sent
 
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = (input_length - 2) * 2
-
-        # with dc.receiver_done_cond:
-        #     dc.receiver_done_cond.wait()
-        #     print 'Receiver finished task 3'
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = (input_length - 2) * 2
 
         with dc.sync_filter_done_cond:
             dc.sync_filter_done_cond.wait()
@@ -303,6 +300,7 @@ class TestCombinedStages:
         server_sock.close()
 
 class TestPerformance:
+    @pytest.mark.skip
     def test_recv_and_verify_speed(self):
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
@@ -318,8 +316,8 @@ class TestPerformance:
 
         input_length = 1000
 
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = input_length - 2
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = input_length - 2
 
         start = time.time()
 
@@ -344,13 +342,14 @@ class TestPerformance:
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
         dc.start_sync_verification_thread()
+        dc.start_parser_thread()
         dc.synchronized = True
 
-        input_length = 1000
+        input_length = 10000
         chunk_size  = 20
 
-        with dc.expected_readings_passed_lock:
-            dc.expected_readings_passed = input_length / chunk_size
+        with dc.expected_readings_verified_lock:
+            dc.expected_readings_verified = input_length / chunk_size
 
         normal_bytearray_chunk = bytearray(0)
         for i in range(chunk_size):
@@ -411,22 +410,62 @@ class TestPerformance:
         conn.close()
         server_sock.close()
 
-    @pytest.mark.skip
     def test_parser_speed(self):
         dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
 
         dc.start_parser_thread()
 
         input_length = 10000
+        chunk_size = 20
+
+        with dc.expected_readings_parsed_lock:
+            dc.expected_readings_parsed = input_length
+
+        normal_bytearray_chunk = bytearray(0)
+        for i in range(chunk_size):
+            normal_bytearray_chunk += normal_bytearray
 
         start = time.time()
 
-        for i in range(input_length):
-            dc.pipeline_queue.put(parser_input)
+        for i in range(input_length / chunk_size):
+            dc.pipeline_sender.send(normal_bytearray_chunk)
+            with dc.reading_available_to_parse_cond:
+                dc.reading_available_to_parse_cond.notify()
 
-        while not dc.pipeline_queue.empty():
-            # wait for the parser to finish processing the input
-            continue
+        with dc.parser_done_cond:
+            dc.parser_done_cond.wait()
+
+        elapsed = time.time() - start
+
+        speed = 1 / (elapsed / input_length)
+
+        print '\n\nParser Stage: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+
+    def test_verify_and_parse_speed(self):
+        dc = DataClient(host, port, storage_sender, gui_data_sender, active_channels)
+
+        dc.start_sync_verification_thread()
+        dc.start_parser_thread()
+
+        input_length = 10000
+        chunk_size = 20
+
+        with dc.expected_readings_parsed_lock:
+            dc.expected_readings_parsed = input_length
+
+        normal_bytearray_chunk = bytearray(0)
+        for i in range(chunk_size):
+            normal_bytearray_chunk += normal_bytearray
+
+        start = time.time()
+
+        for i in range(input_length / chunk_size):
+            dc.fast_path_sender.send(normal_bytearray_chunk)
+            with dc.frame_to_be_verified_cond:
+                dc.frame_to_be_verified_cond.notify()
+
+        with dc.parser_done_cond:
+            dc.parser_done_cond.wait()
 
         elapsed = time.time() - start
 

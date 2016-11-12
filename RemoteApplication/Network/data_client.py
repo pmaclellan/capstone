@@ -55,8 +55,10 @@ class DataClient():
         self.bytes_received = 0
         self.expected_bytes_sent = 99999999
         self.expected_bytes_sent_lock = threading.Lock()
-        self.expected_readings_passed = 99999999
-        self.expected_readings_passed_lock = threading.Lock()
+        self.expected_readings_verified = 99999999
+        self.expected_readings_verified_lock = threading.Lock()
+        self.expected_readings_parsed = 99999999
+        self.expected_readings_parsed_lock = threading.Lock()
 
     def start_receiver_thread(self):
         self.receiver_thread.start()
@@ -236,12 +238,12 @@ class DataClient():
 
     def verify_synchronization(self, *args):
         stop_event = args[0]
-        readings_passed = 0
+        readings_verified = 0
 
         while not stop_event.is_set():
             # for testing purposes only
-            with self.expected_readings_passed_lock:
-                if readings_passed >= self.expected_readings_passed:
+            with self.expected_readings_verified_lock:
+                if readings_verified >= self.expected_readings_verified:
                     with self.sync_filter_done_cond:
                         self.sync_filter_done_cond.notify()
 
@@ -250,8 +252,8 @@ class DataClient():
                 assert len(reading) == (len(self.active_channels) + 4) * 2 * self.chunk_size
                 if reading[0] == 173 and reading[1] == 222: # 173 == 0xAD, 222 == 0xDE
                     # all good, found DEAD where we expected
-                    # self.pipeline_sender.send(reading)
-                    readings_passed += 1
+                    self.pipeline_sender.send(reading)
+                    readings_verified += 1
                     # notify the parser that it has work to do
                     with self.reading_available_to_parse_cond:
                         self.reading_available_to_parse_cond.notify()
@@ -268,8 +270,15 @@ class DataClient():
     # stage into a NumPy array for use in the GUI and StorageController
     def parse_readings(self, *args):
         stop_event = args[0]
-        counter = 0
+        readings_parsed = 0
+
         while not stop_event.is_set():
+            # for testing purposes only
+            with self.expected_readings_parsed_lock:
+                if readings_parsed >= self.expected_readings_parsed:
+                    with self.parser_done_cond:
+                        self.parser_done_cond.notify()
+
             # check that there is a reading to receive
             if self.pipeline_receiver.poll():
                 raw_reading = self.pipeline_receiver.recv()
@@ -279,28 +288,32 @@ class DataClient():
                 continue
 
             # make sure we have the proper number of data points
-            assert len(raw_reading) == (len(self.active_channels) + 4) * 2
+            assert len(raw_reading) == (len(self.active_channels) + 4) * 2 * self.chunk_size
 
-            # extract the 48-bit timestamp value
-            timestamp = (raw_reading[7] << 40) + (raw_reading[6] << 32) + (raw_reading[5] << 24) + \
-                        (raw_reading[4] << 16) + (raw_reading[3] << 8) + raw_reading[2]
+            for n in range(self.chunk_size):
+                start_index = n * (len(self.active_channels) + 4) * 2
+                end_index = (n+1) * (len(self.active_channels) + 4) * 2
+                one_reading = raw_reading[start_index:end_index]
+                # extract the 48-bit timestamp value
+                timestamp = (one_reading[7] << 40) + (one_reading[6] << 32) + (one_reading[5] << 24) + \
+                            (one_reading[4] << 16) + (one_reading[3] << 8) + one_reading[2]
 
-            # start building the list that will be converted to a numpy array later
-            intermediate = [('_TS', timestamp)]
+                # start building the list that will be converted to a numpy array later
+                intermediate = [('_TS', timestamp)]
 
-            # trim DEAD and timestamp from the reading
-            raw_reading = raw_reading[8:]
+                # trim DEAD and timestamp from the reading
+                one_reading = one_reading[8:]
 
-            # construct tuple for each reading e.g. ('0.0', 43125) and add to list
-            for i in range(0, len(raw_reading), 2):
-                intermediate.append((self.active_channels[i/2], (raw_reading[i + 1] << 8) + raw_reading[i]))
+                # construct tuple for each reading e.g. ('0.0', 43125) and add to list
+                for i in range(0, len(one_reading), 2):
+                    intermediate.append((self.active_channels[i/2], (one_reading[i + 1] << 8) + one_reading[i]))
 
-            # create numpy array from list for passing to storage
-            reading = np.array(intermediate, dtype=[('channel', 'S3'), ('value', 'uint64')])
+                # create numpy array from list for passing to storage
+                reading = np.array(intermediate, dtype=[('channel', 'S3'), ('value', 'uint64')])
 
-            if counter % 100 == 0:
-                print 'passing parsed reading number %d' % counter
-            counter += 1
-            # pass the reading along to the other components
-            self.gui_data_sender.send(reading)
-            self.storage_sender.send(reading)
+                readings_parsed += 1
+
+                # pass the reading along to the other components
+                #TODO: uncomment these when the other sides are ready to receive
+                # self.gui_data_sender.send(reading)
+                # self.storage_sender.send(reading)
