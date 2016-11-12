@@ -8,22 +8,6 @@
  ============================================================================
  */
 
-// The following commands from the console setup the GPIO to be
-// exported, set the direction of it to an output and write a 1
-// to the GPIO.
-//
-// bash> echo 240 > /sys/class/gpio/export
-// bash> echo out > /sys/class/gpio/gpio240/direction
-// bash> echo 1 > /sys/class/gpio/gpio240/value
-// GPIO Configuration is as follows:
-//
-//XGpio: /amba_pl/gpio@41200000: registered, base is 905
-//XGpio: /amba_pl/gpio@41200000: dual channel registered, base is 904
-//XGpio: /amba_pl/gpio@41210000: registered, base is 888
-//XGpio: /amba_pl/gpio@41210000: dual channel registered, base is 872
-//XGpio: /amba_pl/gpio@41220000: registered, base is 864
-//XGpio: /amba_pl/gpio@41220000: dual channel registered, base is 848
-//XGpio: /amba_pl/gpio@41230000: registered, base is 847
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,59 +17,65 @@
 #include "axi-gpio.h"
 #include "server-start.h"
 
+#define NUM_PACKETS         4 // 4 packets
+#define LINES_PER_PACKET    9 // 1 header and 8 lines of data
+
 int main(void)
 {
-    // Before config starts, set everything to 0
-    configGpio(0x41200000, 8, 0);
-    configGpio(0x41200008, 8, 0);
-    configGpio(0x41210000, 8, 0);
-    configGpio(0x41210008, 8, 0);
-    configGpio(0x41220000, 8, 0);
-    configGpio(0x41220008, 8, 0);
+    /*
+     * GPIOs are used to configure the dma. The addresses and their
+     * configuration values are the following:
+     *
+     * ADDRESS      SIZE/DIRECTION  DESCRIPTION
+     * 0x41200000   1/out           Timestamp reset
+     * 0x41200008   1/out           ADC Enable
+     * 0x41210000   16/out          SPI Clock Frequency (value = 2 = 25MHz)
+     * 0x41210008   16/out          Sampling frequency (Freq = 100MHz / value)
+     * 0x41220000   8/out           Zedboard LEDs
+     * 0x41220008   16/out          Data packets per frame
+     * 0x41230000   1/in            Internal buffer overflow
+     */
 
     // Begin actual config
-    printf("Begin DMA Configuration\n");
+    printf("Initial DMA Configuration...\n");
+    // Before config starts, set everything to 0
+    configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 0);
+    configGpio(GPIO_ADC_EN, SIZE_ADC_EN, 0);
+    configGpio(GPIO_SCLK_FREQ, SIZE_SCLK_FREQ, 0);
+    configGpio(GPIO_SAMPLE_FREQ, SIZE_SAMPLE_FREQ, 0);
+    configGpio(GPIO_LEDS, SIZE_LEDS, 0);
+    configGpio(GPIO_PACKETS_PER_FRAME,  SIZE_PACKETS_PER_FRAME, 0);
 
-    // (0x41210000) Configure SPI clock:
-    //      2 = 25MHz
-    // (0x41210008) Configure Sample Frequency:
-    //      Sample freq = 100MHz / value (ex. 100MHz / 1000 = 100kHz)
-    // (0x41220008) Configure the number of packets / frame:
-    //      NOTE: Setting this to 4 will actually make it send 5.5 packets. The
-    //      last 1.5 packets are garbage that this app will need to throw out.
-    // (0x41200000) Timestamp reset:
-    //      Set high, then low to reset the timestamp
-    // (0x41200008) ADC Enable:
-    //      Set high to enable ADC
-    configGpio(0x41210000, 16, 2);
-    configGpio(0x41210008, 16, 1000);
-    configGpio(0x41220008, 16, 4);
-    configGpio(0x41200000, 8, 1);
-    configGpio(0x41200000, 8, 0);
-    configGpio(0x41200008, 8, 1);
+    // Set config values
+    configGpio(GPIO_SCLK_FREQ, SIZE_SCLK_FREQ, 2);
+    configGpio(GPIO_SAMPLE_FREQ, SIZE_SAMPLE_FREQ, 1000);
+    configGpio(GPIO_PACKETS_PER_FRAME, SIZE_PACKETS_PER_FRAME, NUM_PACKETS);
+    configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 1);
+    configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 0);
+    configGpio(GPIO_ADC_EN, SIZE_ADC_EN, 1);
 
     // Await start command from server
     printf("Awaiting server start command...\n");
+    // TODO: 11/13
 
-
-
-    // Create a buffer to put our DMA data into:
-    //      size = (6 packets) x (9 lines / packet) x (8 bytes / line)
+    // Create a buffer to put our DMA data into
+    // Note: Add 2 to the number of packets because DMA will give 2 extra
+    // packets (with garbage) for the number you configure
     uint64_t * buf;
-    size_t bufSize = 6 * 9 * 8;
+    size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
     buf = malloc(bufSize);
 
     // Open the axidma device
     int axiDmaFd = open("/dev/axidma_rx", O_RDONLY);
 
-    // Toggle LED to signal successful DMA config
+    // Print some data for debugging
     int count = 0;
     while(count < 4)
     {
         read(axiDmaFd, buf, bufSize);
         printf("Buffer contents are:\n");
         int i;
-        for (i = 0; i < (36); i++)
+        for (i = 0; i < (NUM_PACKETS * LINES_PER_PACKET); i++)
         {
             if (i % 9 == 0)
             {
@@ -94,29 +84,6 @@ int main(void)
         }
         count++;
     }
-
-    printf("\n\n RESETTING \n\n");
-    configGpio(0x41200008, 8, 0);
-    configGpio(0x41200008, 8, 1);
-    configGpio(0x41200000, 8, 1);
-    configGpio(0x41200000, 8, 0);
-
-    count = 0;
-    while(count < 4)
-    {
-        read(axiDmaFd, buf, bufSize);
-        printf("Buffer contents are:\n");
-        int i;
-        for (i = 0; i < (36); i++)
-        {
-            if (i % 9 == 0)
-            {
-                printf("buf[%d] = 0x%" PRIx64 "\n", i, buf[i]);
-            }
-        }
-        count++;
-    }
-
 
     close(axiDmaFd);
     free(buf);
