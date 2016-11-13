@@ -7,7 +7,7 @@ import Queue # just needed for the Empty exception
 
 
 class DataClient():
-    def __init__(self, host, port, storage_sender, gui_data_sender, active_channels):
+    def __init__(self, host, port, storage_sender, gui_data_sender, reading_to_be_stored_cond, readings_to_be_plotted_cond):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -18,7 +18,14 @@ class DataClient():
         self.gui_data_sender = gui_data_sender
 
         # list of channel strings (e.g. '0.0')
-        self.active_channels = active_channels
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                                '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
+                                '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
+                                '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
+
+        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+
+        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
 
         # pipe for passing full readings (bytearray) from socket listener to sync verification filter
         self.fast_path_receiver, self.fast_path_sender = mp.Pipe(duplex=False)
@@ -315,5 +322,8 @@ class DataClient():
 
                 # pass the reading along to the other components
                 #TODO: uncomment these when the other sides are ready to receive
+
                 # self.gui_data_sender.send(reading)
+                # self.readings_to_be_plotted_cond.notify()
                 # self.storage_sender.send(reading)
+                # self.reading_to_be_stored_cond.notify()
