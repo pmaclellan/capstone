@@ -6,17 +6,15 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, outgoing_queue, ack_queue):
+    def __init__(self, host, port, control_protobuf_conn):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # holds messages that have not been sent yet
-        self.outgoing_queue = outgoing_queue
-
-        # used to pass ACKs up to network controller
-        self.ack_queue = ack_queue
+        # receives control messages from NetworkController to be sent over TCP control connection
+        # sends ACK messages back to NetworkController
+        self.control_protobuf_conn = control_protobuf_conn
 
         # holds serialized messages that have been received but not processed
         self.incoming_queue = mp.Queue()
@@ -68,19 +66,19 @@ class ControlClient(asyncore.dispatcher):
         if sequence in self.sent_dict.keys():
             serialized_acked_request = self.sent_dict.pop(sequence)
             print 'ControlClient: ACKed request popped %s' % serialized_acked_request
-            self.ack_queue.put(serialized_acked_request)
+            self.control_protobuf_conn.send(serialized_acked_request)
 
     def readable(self):
         return True
 
     def writable(self):
         # we want to write whenever there are messages to be sent
-        is_writable = not self.outgoing_queue.empty()
+        is_writable = self.control_protobuf_conn.poll()
         return is_writable
 
     def handle_write(self):
-        # grab request to be sent from the queue
-        serialized_req_wrap = self.outgoing_queue.get_nowait()
+        # grab request to be sent from the incoming connection
+        serialized_req_wrap = self.control_protobuf_conn.recv()
         print 'ControlClient: handle_write() retrieved msg from outgoing queue'
 
         # parse the request for storage in sent_dict
