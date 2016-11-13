@@ -3,17 +3,23 @@ from PyQt4 import QtGui, uic, QtCore, QtGui
 from PyQt4.QtCore import QObject, pyqtSlot
 from PyQt4.QtGui import QFileDialog, QMessageBox
 import pyqtgraph as pg
-import Queue
 import numpy as np
 from pyqtgraph.ptime import time
 import os
 from datetime import datetime
+import multiprocessing as mp
 
 class MainWindow(QtGui.QMainWindow):
-    def __init__(self):
+    def __init__(self, control_conn, data_receiver):
         super(MainWindow, self).__init__()
+
+        # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
+        self.control_conn = control_conn
+
+        # mp.Connection for receiving raw data stream for plotting
+        self.data_receiver = data_receiver
         
-        self.ui = uic.loadUi("DAQuLA.ui")
+        self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.checkBoxes = CheckBoxes(self)
         self.daq = DaqPlot(self)
         self.ui.show()
@@ -27,7 +33,6 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.fileEdit.setText(self.directory + "\Data\\" + self.fileTimestamp + ".h5")
 #        self.cancel = False #used for stopping plotting process
         #self.ui.fileEdit.setText(QFileDialog.getSaveFileName(directory = self.directory + "\Data", filter = "*.h5"))
-
         
     def connect(self):
         #if selected file doesn't exist yet, make it
@@ -239,10 +244,11 @@ class CheckBoxes:
             #self.parent.daq.nPlots = self.parent.daq.nPlots + 1
             self.parent.ui.daqPlot.addItem(self.parent.daq.curves[2])
 
-## Always start by initializing Qt (only once per application)
-app = QtGui.QApplication(sys.argv)
-window = MainWindow()
-sys.exit(app.exec_())
+if __name__ == "__main__":
+    ## Always start by initializing Qt (only once per application)
+    app = QtGui.QApplication(sys.argv)
+    window = MainWindow()
+    sys.exit(app.exec_())
 """
 
 from pyqtgraph.Qt import QtGui, QtCore, uic
