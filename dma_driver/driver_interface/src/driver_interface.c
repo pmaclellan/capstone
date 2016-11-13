@@ -40,7 +40,7 @@ int main(void)
     {
         buf = readFromServer(clientSock);
 
-        if ((buf >> 32) == 0)
+        if (((buf >> 32) == 0) && (Status == EMBRYO))
         {
             // This is a start request
             currentTime = processStartRequest(buf);
@@ -49,7 +49,7 @@ int main(void)
             // Set the status as running
             Status = RUNNING;
         }
-        else if ((buf >> 32) == 1)
+        else if (((buf >> 32) == 1) && (Status == RUNNING))
         {
             // This is a stop request
             processStopRequest();
