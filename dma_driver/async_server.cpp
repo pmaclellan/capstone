@@ -13,10 +13,12 @@
 #include <iostream>
 #include <pthread.h>
 #include <sys/stat.h>
+#include <sys/un.h>
 
 #define CTRLPORT 10001
 #define DATAPORT 10002
 #define BACKLOG 5
+#define SOCK_PATH "/tmp/controller.sock"
 
 using namespace std;
 
@@ -24,8 +26,9 @@ int getBit(int n, int bitNum);
 void error(const char *msg);
 void *control_task(void *);
 void *data_task(void *);
+void connect_to_controller();
 
-int client_fd[2], socket_fd[2];
+int client_fd[2], socket_fd[2], socket_control;
 int adc_channels[34];
 int numChannels;
 bool read_data;
@@ -141,13 +144,10 @@ int main()
 
 void *control_task(void *dummy)
 {
-    const char * dmaFifoTxPath = "/tmp/server2control";
-    const char * dmaFifoRxPath = "/tmp/control2server";
-    int txfd, rxfd;
+    connect_to_controller();
     int data_port = 10002;
     std::string ackString;
     uint16_t ackSize;
-    mkfifo(dmaFifoTxPath, 0666);
 
     while(1)
     {
@@ -195,24 +195,15 @@ void *control_task(void *dummy)
 		}
 	    }
 
-	    // Send sample rate to fifo
-	    if ((txfd = open(dmaFifoTxPath, O_WRONLY)) < 0)
-	    {
-		error("ERROR opening fifo failure");
-	        return NULL;
-	    }
+	    // Send sample rate to controller
 	    uint32_t code = 0;
 	    uint32_t sample_rate = start_request.rate();
-	    uint64_t test = code<<32 + sample_rate;
-	    write(txfd, &test, sizeof(uint64_t));
-
-	    // Read timestamp from fifo
-	    if ((rxfd = open(dmaFifoRxPath, O_RDONLY)) < 0)
-	    {
-		error("ERROR opening fifo failure");
-	    }
+	    uint64_t sr_and_code = code<<32 + sample_rate;
+	    send(socket_control, &sr_and_code, sizeof(sr_and_code), 0);
+	    
+	    // Read timestamp from controller
 	    uint64_t buff;
-	    read(rxfd, &buff, sizeof(buff));
+	    recv(socket_control, &buff, sizeof(buff), 0);
 	    start_request.set_timestamp(buff);
 
 	    // Send size of port number string over control socket
@@ -246,25 +237,14 @@ void *control_task(void *dummy)
 	    read_data = false;
 
 	    // Send stop to fifo
-	    if ((txfd = open(dmaFifoTxPath, O_WRONLY)) < 0)
-	    {
-		error("ERROR opening fifo failure");
-		return NULL;
-	    }
 	    uint32_t code = 1;
 	    uint32_t sample_rate = start_request.rate();
-	    uint64_t test = code<<32 + sample_rate;
-	    write(txfd, &test, sizeof(test));
-	    close(txfd);
+	    uint64_t stop = code<<32 + sample_rate;
+	    send(socket_control, &stop, sizeof(stop), 0);
 
-	    // Read ack from fifo
-	    if ((rxfd = open(dmaFifoRxPath, O_RDONLY)) < 0)
-	    {
-		error("ERROR opening fifo failure");
-		return NULL;
-	    }
+	    // Read ack from controller
 	    uint64_t buff;
-	    read(rxfd, &buff, sizeof(buff));
+	    recv(socket_control, &buff, sizeof(buff), 0);
 	    
 	    if (buff == 1)
 	    {
@@ -337,6 +317,28 @@ void *data_task(void *dummy)
 	    close(fd);
 	}
     }
+}
+
+void connect_to_controller()
+{
+    int len;
+    struct sockaddr_un remote;
+    if ((socket_control = socket(AF_UNIX, SOCK_STREAM, 0)) < 0)
+    {
+	perror("socket");
+	exit(1);
+    }
+    printf("Trying to connect...\n");
+
+    remote.sun_family = AF_UNIX;
+    strcpy(remote.sun_path, SOCK_PATH);
+    len = strlen(remote.sun_path) + sizeof(remote.sun_family);
+    if (connect(socket_control, (struct sockaddr *)&remote, len) < 0)
+    {
+	perror("connect");
+	exit(1);
+    }
+    printf("Connected\n");
 }
 
 int getBit(int n, int bitNum)
