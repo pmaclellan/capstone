@@ -10,7 +10,8 @@ from datetime import datetime
 import multiprocessing as mp
 
 class MainWindow(QtGui.QMainWindow):
-    def __init__(self, control_conn, data_receiver):
+    def __init__(self, control_conn, data_receiver, filepath_sender,
+                 readings_to_be_plotted_cond, filepath_available_cond):
         super(MainWindow, self).__init__()
 
         # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
@@ -18,6 +19,15 @@ class MainWindow(QtGui.QMainWindow):
 
         # mp.Connection for receiving raw data stream for plotting
         self.data_receiver = data_receiver
+
+        # mp.Connection for sending directory to store binary files in to StorageController
+        self.filepath_sender = filepath_sender
+
+        # mp.Condition variable to wait on for new set of readings to be available to be plotted
+        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
+
+        # mp.Condition variable to notify StorageController that it should update its filepath
+        self.filepath_available_cond = filepath_available_cond
         
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.checkBoxes = CheckBoxes(self)
@@ -51,6 +61,11 @@ class MainWindow(QtGui.QMainWindow):
         print self.checkBoxes.getActiveChannels()
         print self.ui.fileEdit.text()
         print self.ui.sampleRate.text()
+
+        # TODO: input validation
+        self.filepath_sender.send(self.ui.fileEdit.text())
+        with self.filepath_available_cond:
+            self.filepath_available_cond.notify()
         print "Connect Flag!"
         
         
@@ -214,6 +229,22 @@ class CheckBoxes:
             if self.boxes[i].isChecked():
                 active.append(self.channels[i])
         return active
+
+    def generateChannelBitMask(self):
+        active = self.getActiveChannels()
+
+        bit_mask = np.uint32(0)
+        offset = 0
+        for i in range(4):
+            for j in range(8):
+                if (str(i) + '.' + str(j)) in active:
+                    # bit_mask |= 0x01 << offset
+                    bit_mask = np.bitwise_or(bit_mask, np.left_shift(np.uint32(1), offset))
+                else:
+                    # bit_mask &= ~(0x01 << offset)
+                    bit_mask = np.bitwise_and(bit_mask, np.bitwise_not(np.left_shift(np.uint32(1), offset)))
+                offset += 1
+        return bit_mask
             
     def lockBoxes(self):
         self.enableAll.setEnabled(False)
