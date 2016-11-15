@@ -43,6 +43,9 @@ class MainWindow(QtGui.QMainWindow):
  
         self.sequence = 0
         self.sequence_lock = threading.Lock()
+
+        # holds Unix timestamp sent from MicroZed that corresponds to the first sample time
+        self.start_time = 0
  
         # sent_dict holds control messages that have been sent to NetworkController but not yet ACKed
         self.sent_dict = {}
@@ -68,12 +71,12 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.selectDirButton.clicked.connect(self.selectDir)
         
         self.directory = os.path.dirname(__file__)
-        if not os.path.exists(self.directory + "/Data"):
-            os.makedirs(self.directory + "/Data")
-        self.ui.fileEdit.setText(self.directory + "/Data")
+        if not os.path.exists(self.directory + '/output'):
+            os.makedirs(self.directory + '/output')
+        self.ui.fileEdit.setText(self.directory + '/output')
         
-        self.ui.serverIpEdit.setText("I am here")
-        self.ui.serverPortEdit.setText("I am here")
+        self.ui.serverIpEdit.setText('10.42.0.2')
+        self.ui.serverPortEdit.setText('10001')
         
         
     def handle_connect(self):
@@ -105,8 +108,8 @@ class MainWindow(QtGui.QMainWindow):
             connect_msg['seq'] = self.sequence
             self.sequence += 1
         connect_msg['type'] = 'CONNECT'
-        connect_msg['host'] = '10.42.0.2' # TODO: grab from UI field
-        connect_msg['port'] = 10001 # TODO: grab from UI field
+        connect_msg['host'] = self.ui.serverIpEdit.text()
+        connect_msg['port'] = int(self.ui.serverPortEdit.text())
         connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
         connect_msg['rate'] = int(self.ui.sampleRate.text())
 
@@ -183,6 +186,9 @@ class MainWindow(QtGui.QMainWindow):
                         # TODO: dear god please put this stuff into helper functions
                         if response['type'] == 'CONNECT':
                             if response['success'] == True:
+                                # grab 64-bit Unix timestamp to add to each reading offset
+                                self.start_time = response['timestamp']
+
                                 self.ui.connectButton.setText('Disconnect')
                                 self.ui.connectButton.clicked.disconnect()
                                 self.ui.connectButton.clicked.connect(self.handle_disconnect)
