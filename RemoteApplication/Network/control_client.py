@@ -6,7 +6,7 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event):
+    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event, disconnected_event):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
@@ -20,7 +20,8 @@ class ControlClient(asyncore.dispatcher):
         self.ack_msg_from_cc_cond = ack_msg_from_cc_cond
 
         # threading.Event variable for notifying NetworkController that we have connected to server (async)
-        self.connected_cond = connected_event
+        self.connected_event = connected_event
+        self.disconnected_event = disconnected_event
 
         # holds serialized messages that have been received but not processed
         self.incoming_queue = mp.Queue()
@@ -43,12 +44,12 @@ class ControlClient(asyncore.dispatcher):
 
     def handle_connect(self):
         print 'ControlClient: handle_connect() entered'
-        # notify NetworkController that we are connected
-        self.connected_event.set()
 
     def handle_close(self):
+        print 'ControlClient: handle_close() entered'
         self.connected = False
         self.close()
+        self.disconnected_event.set()
 
     def handle_read(self):
         # read 16 bit length header	
@@ -86,6 +87,9 @@ class ControlClient(asyncore.dispatcher):
         return is_writable
 
     def handle_write(self):
+        # notify NetworkController that we are connected
+        self.connected_event.set()
+
         # grab request to be sent from the incoming connection
         serialized_req_wrap = self.control_protobuf_conn.recv()
         print 'ControlClient: handle_write() retrieved msg from outgoing queue'

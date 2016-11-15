@@ -37,6 +37,7 @@ class NetworkController(mp.Process):
 
         # threading.Event variable to wait on for async client to connect
         self.control_client_connected_event = threading.Event()
+        self.control_client_disconnected_event = threading.Event()
 
         # shared with control client, sends request messages to be sent over TCP
         # receives ACK messages
@@ -62,7 +63,8 @@ class NetworkController(mp.Process):
 
         self.control_client = ControlClient(control_protobuf_conn=self.cc_control_conn,
                                             ack_msg_from_cc_cond=self.ack_msg_from_cc_cond,
-                                            connected_event=self.control_client_connected_event)
+                                            connected_event=self.control_client_connected_event,
+                                            disconnected_event=self.control_client_disconnected_event)
 
         self.data_client = DataClient(gui_data_sender=self.gui_data_sender,
                                       storage_sender=self.storage_sender,
@@ -108,7 +110,7 @@ class NetworkController(mp.Process):
         self.loop_thread.join()
 
     def close_data_port(self):
-        self.data_client.close_data_port()
+        return self.data_client.close_data_port()
 
     # def processChannelUpdate(self, sender, checked):
     #     if checked:
@@ -159,18 +161,41 @@ class NetworkController(mp.Process):
                         raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
                                              % msg['seq'])
 
-                    # # asyncore client doesn't connect until it tries to recv/send,
-                    # # so we need to be notified asynchronously
-                    # control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
-                    #
-                    # if not control_client_connected:
-                    #     # ControlClient connect failed, notify GUI
-                    #     reply_msg = msg
-                    #     reply_msg['success'] = False
-                    #     reply_msg['message'] = 'Failed to connect ControlClient to %s:%d' % (self.host, self.port)
-                    #     self.gui_control_conn.send(reply_msg)
-                    #     with self.control_msg_from_nc_cond:
-                    #         self.control_msg_from_nc_cond.notify()
+                    # asyncore client doesn't connect until it tries to recv/send,
+                    # so we need to be notified asynchronously
+                    control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
+
+                    if not control_client_connected:
+                        # ControlClient connect failed, notify GUI
+                        reply_msg = msg
+                        reply_msg['success'] = False
+                        reply_msg['message'] = 'Failed to connect ControlClient to %s:%d' % (self.host, self.port)
+                        self.gui_control_conn.send(reply_msg)
+                        with self.control_msg_from_nc_cond:
+                            self.control_msg_from_nc_cond.notify()
+
+                elif msg['type'] == 'DISCONNECT':
+                    # construct a StopRequest protobuf message
+                    stopRequest = control_signals_pb2.StopRequest()
+                    stopRequest.port = self.port + 1
+                    stopRequest.channels = 0xffff
+
+                    # wrap it up and copy sequence number
+                    requestWrapper = control_signals_pb2.RequestWrapper()
+                    requestWrapper.sequence = msg['seq']
+                    requestWrapper.stop.MergeFrom(stopRequest)
+
+                    # serialize wrapper for sending over Pipe
+                    serialized = requestWrapper.SerializeToString()
+                    self.nc_control_conn.send(serialized)
+                    print 'NetworkController: sent serialized requestWrapper to CC'
+                    # ControlClient uses asyncore so we don't need to notify it
+
+                    if msg['seq'] not in self.sent_dict.keys():
+                        self.sent_dict[msg['seq']] = msg
+                    else:
+                        raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
+                                             % msg['seq'])
 
             else:
                 with self.control_msg_from_gui_cond:
@@ -226,8 +251,28 @@ class NetworkController(mp.Process):
                         with self.control_msg_from_nc_cond:
                             self.control_msg_from_nc_cond.notify()
 
+                elif ack_wrapper.HasField('stop') and self.data_client.connected:
+                    data_port_disconnected = self.close_data_port()
+                    self.close_control_port()
+                    control_port_disconnected = self.control_client_disconnected_event.wait(timeout=5.0)
+
+                    if data_port_disconnected and control_port_disconnected:
+                        reply_msg = msg
+                        reply_msg['success'] = True
+                        reply_msg['message'] = 'Control and Data clients disconnected successfully'
+                        self.gui_control_conn.send(reply_msg)
+                        with self.control_msg_from_nc_cond:
+                            self.control_msg_from_nc_cond.notify()
+                    else:
+                        reply_msg = msg
+                        reply_msg['success'] = False
+                        reply_msg['message'] = 'Unable to disconnect properly or control client disconnect timed out'
+                        self.gui_control_conn.send(reply_msg)
+                        with self.control_msg_from_nc_cond:
+                            self.control_msg_from_nc_cond.notify()
+
                 else:
-                    print 'NetworkController: received a non-StartRequest ACK'
+                    print 'NetworkController: received an unexpected ACK type (not Stop or StartRequest'
 
             else:
                 with self.ack_msg_from_cc_cond:

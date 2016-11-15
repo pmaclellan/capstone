@@ -109,11 +109,11 @@ class MainWindow(QtGui.QMainWindow):
         with self.msg_to_be_sent_cond:
             self.msg_to_be_sent_cond.notify()
         print "Connect Flag!"
-        
-        # TODO: change behavior to disable until the ACK is received
-        self.ui.connectButton.setText('Disconnect')
-        self.ui.connectButton.clicked.disconnect()
-        self.ui.connectButton.clicked.connect(self.handle_disconnect)
+
+        # TODO: show a 'connecting...' spinner
+
+        # disable input until we get a reply message
+        self.ui.connectButton.setEnabled(False)
         self.ui.fileEdit.setEnabled(False)
         self.ui.selectFileButton.setEnabled(False)
         self.ui.sampleRate.setEnabled(False)
@@ -123,14 +123,22 @@ class MainWindow(QtGui.QMainWindow):
         self.daq.stopPlot()
         
         #send to Pete
+        # construct disconnect control message
+        disconnect_msg = {}
+        with self.sequence_lock:
+            disconnect_msg['seq'] = self.sequence
+            self.sequence += 1
+        disconnect_msg['type'] = 'DISCONNECT'
+
+        # put disconnect message in queue to be sent to NetworkController and notify sender thread
+        self.send_queue.put(disconnect_msg)
+        with self.msg_to_be_sent_cond:
+            self.msg_to_be_sent_cond.notify()
         print "Disconnect Flag!"
-        
-        self.ui.connectButton.clicked.disconnect()
-        self.ui.connectButton.clicked.connect(self.handle_connect)
-        self.checkBoxes.unlockBoxes()
-        self.ui.fileEdit.setEnabled(True)
-        self.ui.selectFileButton.setEnabled(True)
-        self.ui.sampleRate.setEnabled(True)
+
+        # TODO: show a 'disconnecting...' spinner
+
+        self.ui.connectButton.setEnabled(False)
     
     def selectFile(self):
         saveFile = QFileDialog.getSaveFileName(directory = self.directory + "\Data", filter = "*.h5")
@@ -161,12 +169,68 @@ class MainWindow(QtGui.QMainWindow):
                     if response['seq'] in self.sent_dict.keys():
                         self.sent_dict.pop(response['seq'])
                         print 'GUI: received reply from NC, %s' % response
-                        # TODO: take some action to post message on UI, enable buttons, etc.
+                        # TODO: dear god please put this stuff into helper functions
+                        if response['type'] == 'CONNECT':
+                            if response['success'] == True:
+                                self.ui.connectButton.setText('Disconnect')
+                                self.ui.connectButton.clicked.disconnect()
+                                self.ui.connectButton.clicked.connect(self.handle_disconnect)
+                                self.ui.connectButton.setEnabled(True)
+                                self.ui.fileEdit.setEnabled(False)
+                                self.ui.selectFileButton.setEnabled(False)
+                                self.ui.sampleRate.setEnabled(False)
+                                self.checkBoxes.lockBoxes()
+                            else:
+                                self.ui.connectButton.setText('Connect')
+                                self.ui.connectButton.clicked.disconnect()
+                                self.ui.connectButton.clicked.connect(self.handle_connect)
+                                self.ui.connectButton.setEnabled(True)
+                                self.ui.fileEdit.setEnabled(True)
+                                self.ui.selectFileButton.setEnabled(True)
+                                self.ui.sampleRate.setEnabled(True)
+                                self.checkBoxes.unlockBoxes()
+
+                        elif response['type'] == 'DISCONNECT':
+                            if response['success'] == True:
+                                self.ui.connectButton.setText('Connect')
+                                self.ui.connectButton.clicked.disconnect()
+                                self.ui.connectButton.clicked.connect(self.handle_connect)
+                                self.ui.connectButton.setEnabled(True)
+                                self.ui.fileEdit.setEnabled(True)
+                                self.ui.selectFileButton.setEnabled(True)
+                                self.ui.sampleRate.setEnabled(True)
+                                self.checkBoxes.unlockBoxes()
+                            else:
+                                self.ui.connectButton.setText('Disconnect')
+                                self.ui.connectButton.clicked.disconnect()
+                                self.ui.connectButton.clicked.connect(self.handle_disconnect)
+                                self.ui.connectButton.setEnabled(True)
+                                self.ui.fileEdit.setEnabled(False)
+                                self.ui.selectFileButton.setEnabled(False)
+                                self.ui.sampleRate.setEnabled(False)
+                                self.checkBoxes.lockBoxes()
+                        # self.showResultMessage(response)
                     else:
                         raise RuntimeWarning('unexpected message received from NetworkController')
             else:
                 with self.control_msg_from_nc_cond:
                     self.control_msg_from_nc_cond.wait()
+
+    # def showResultMessage(self, message):
+    #     msg = QMessageBox()
+    #     if message['success']:
+    #         msg.setIcon(QMessageBox.Information)
+    #         msg.setText("Success!")
+    #         msg.setWindowTitle("Action Succeeded")
+    #         msg.setInformativeText(message['message'])
+    #     else:
+    #         msg.setIcon(QMessageBox.Critical)
+    #         msg.setText("Failure!")
+    #         msg.setWindowTitle("Action Failed")
+    #         msg.setInformativeText(message['message'])
+    #
+    #     msg.setStandardButtons(QMessageBox.Ok)
+
         
 #     def showdialog(self):
 #         msg = QMessageBox()

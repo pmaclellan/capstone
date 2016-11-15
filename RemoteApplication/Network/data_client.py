@@ -73,6 +73,10 @@ class DataClient():
 
     def stop_data_threads(self):
         self.recv_stop_event.set()
+        self.receiver_thread.join()
+        self.sync_verification_thread.join()
+        self.parser_thread.join()
+        return True
 
     def start_sync_verification_thread(self):
         self.sync_verification_thread.start()
@@ -115,10 +119,11 @@ class DataClient():
         return self.connected
 
     def close_data_port(self):
-        # print 'DataClient: close_control_port()'
+        print 'DataClient: close_control_port()'
         self.connected = False
-        self.stop_data_threads()
+        data_threads_stopped = self.stop_data_threads()
         self.sock.close()
+        return data_threads_stopped
 
     def receive_data(self, *args):
         stop_event = args[0]
