@@ -6,7 +6,8 @@ import time
 import os.path
 
 class StorageController(mp.Process):
-    def __init__(self, storage_receiver, filepath_receiver, reading_to_be_stored_cond, filepath_available_cond):
+    def __init__(self, storage_receiver, filepath_receiver, file_header_receiver,
+                 reading_to_be_stored_event, filepath_available_cond, file_header_available_cond):
         super(StorageController, self).__init__()
 
         # mp.Connection for receiving raw ADC data readings (bytearray from NC.DC)
@@ -15,11 +16,17 @@ class StorageController(mp.Process):
         # mp.Connection for receiving directory (from GUI) to write files to
         self.filepath_receiver = filepath_receiver
 
-        # mp.Condition variable to wait on for new readings to be available
-        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+        # mp.Connection for receiving start_time, channel_bitmask, and chunk_size
+        self.file_header_receiver = file_header_receiver
+
+        # mp.Event variable to wait on for new readings to be available
+        self.reading_to_be_stored_event = reading_to_be_stored_event
 
         # mp.Condition variable to wait on for new directory to write files to to be available
         self.filepath_available_cond = filepath_available_cond
+
+        # mp.Condition variable to wait on for file header updates from NC
+        self.file_header_available_cond = file_header_available_cond
 
         # Pipe for passing data internally
         self.from_reader, self.to_writer = mp.Pipe(duplex=False)
@@ -34,6 +41,10 @@ class StorageController(mp.Process):
         # start_time will hold the Unix time to add to each reading's timestamp offset
         # will be set upon receiving a start message from NC upon successful NC.CC connection
         self.start_time = 0
+
+        # channel_bitmask will be sent along with start_time by the NetworkController upon connecting to server
+        self.channel_bitmask = 0xffff
+        self.chunk_size = 0
 
         # filepath is the absolute directory path to write files to
         self.filepath = ''
@@ -72,10 +83,44 @@ class StorageController(mp.Process):
                 with self.filepath_available_cond:
                     self.filepath_available_cond.wait()
 
+    def listen_for_file_header_update(self):
+        while not self.stop_event.is_set():
+            if self.file_header_receiver.poll():
+                self.start_time, self.channel_bitmask, self.chunk_size = self.file_header_receiver.recv()
+            else:
+                with self.file_header_available_cond:
+                    self.file_header_available_cond.wait()
+
     def write_binary_files(self):
         print 'write_binary_files() not implemented'
-        while True:
-            continue
+        filesize_threshold = 1000
+        while not self.stop_event.is_set():
+            # wait to have something to write before we open a new file
+            self.reading_to_be_stored_event.wait()
+            self.reading_to_be_stored_event.clear()
+            bytes_written = 0
+            filename = time.strftime('%Y%m%d%H%M%S')
+            f = open(self.filepath + filename, 'wb')
+            print 'StorageController: opened a new file: %s' % filename
+            f.write(str(self.start_time) + '\n')
+            f.write(str(self.channel_bitmask) + '\n')
+            f.write(str(self.chunk_size) + '\n')
+            while bytes_written < filesize_threshold:
+                if self.storage_receiver.poll():
+                    reading = self.storage_receiver.recv()
+                    f.write(reading + '\n')
+                else:
+                    result = self.reading_to_be_stored_event.wait(3.0)
+                    if result:
+                        self.reading_to_be_stored_event.clear()
+                        continue
+                    else: # timed out
+                        break
+            print 'StorageController: filesize exceeds limit or we timed out, closing and opening another'
+            f.close()
+        if f and not f.closed:
+            f.close()
+
 
     def writeHDF5files(self):
         timeout_threshold = 100000
