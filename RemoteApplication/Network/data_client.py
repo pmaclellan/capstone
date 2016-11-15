@@ -34,7 +34,7 @@ class DataClient():
         self.pipeline_receiver, self.pipeline_sender = mp.Pipe(duplex=False)
 
         # Condition variables
-        self.receiver_done_cond = threading.Condition()
+        self.receiver_done_event = threading.Event()
         self.sync_filter_done_cond = threading.Condition()
         self.parser_done_cond = threading.Condition()
         self.reading_available_to_parse_cond = threading.Condition()
@@ -135,18 +135,16 @@ class DataClient():
 
         while not stop_event.is_set():
             # print 'Receiver: bytes_received = %d' % bytes_received
+            # for testing purposes only
+            # TODO: remove in production version so we're not waiting to acquire this lock
             with self.expected_bytes_sent_lock:
                 if bytes_received >= self.expected_bytes_sent:
-                    with self.receiver_done_cond:
-                        self.receiver_done_cond.notify()
+                    self.receiver_done_event.set()
             # If we are already in sync, take the fast path where we process readings
             # in full and simply check that the DEAD is where we expect it to be. If
             # it is not where we expect it, synchronized will be set to false and the
             # next iteration will send each byte through the recovery filter.
-            with self.synchronized_lock:
-                in_sync = self.synchronized
-
-            if in_sync:
+            if self.synchronized:
                 # create a buffer to store DEAD, TS, and all channel values
                 # if we didn't receive a full reading last time, subtract the carryover length from the total
                 reading_buffer = bytearray(self.chunk_byte_length - len(carryover_buffer))
@@ -155,25 +153,18 @@ class DataClient():
                 readable, writable, exceptional = select.select([self.sock], [], [], 1)
                 if self.sock in readable:
                     bytes_recv = self.sock.recv_into(reading_buffer)
-                    print 'DataClient: received %d bytes' % bytes_recv
-                    print 'DataClient: reading_buffer = %d' % reading_buffer[0]
-                    reading_buffer = carryover_buffer + reading_buffer
-                    assert len(reading_buffer) == self.chunk_byte_length
-
-                if reading_buffer[-1] != 0:
-                    bytes_received += len(reading_buffer)
-                    self.fast_path_sender.send(reading_buffer)
-                    # notify sync verification thread that it has work to do
-                    with self.frame_to_be_verified_cond:
-                        self.frame_to_be_verified_cond.notify()
-                else:
-                    # didn't receive a full reading, or it happened to end in 0
-                    # calculate how many non-zero bytes we actually received and carry those over
-                    for i in range(len(reading_buffer)):
-                        if reading_buffer[i] == 0:
-                            bytes_received += i
-                            carryover_buffer = reading_buffer[:i]
-                            break
+                    bytes_received += bytes_recv
+                    # print 'DataClient: received %d bytes' % bytes_recv
+                    # print 'DataClient: reading_buffer = %d' % reading_buffer[0]
+                    reading_buffer = carryover_buffer + reading_buffer[:bytes_recv]
+                    if len(reading_buffer) < self.chunk_byte_length:
+                        carryover_buffer = reading_buffer
+                    else:
+                        self.fast_path_sender.send(reading_buffer)
+                        carryover_buffer = bytearray(0)
+                        # notify sync verification thread that it has work to do
+                        with self.frame_to_be_verified_cond:
+                            self.frame_to_be_verified_cond.notify()
 
             else:
                 # print 'out of sync'
@@ -181,8 +172,7 @@ class DataClient():
                     while not self.synchronized:
                         with self.expected_bytes_sent_lock:
                             if bytes_received >= self.expected_bytes_sent:
-                                with self.receiver_done_cond:
-                                    self.receiver_done_cond.notify()
+                                self.receiver_done_event.set()
                         # realign in case we got a stray byte somewhere and are off by one byte
                         if realign_by_one:
                             byte2_enc = temp_byte
@@ -220,8 +210,7 @@ class DataClient():
 
                         # merge the two byte strings and convert to an integer
                         value = int(byte1_enc + byte2_enc, 16)
-                        print 'DataClient: received value %d' % value
-                        #             # print 'bytes: %s, %s' % (byte1_enc, byte2_enc)
+                        # print 'DataClient: received value %d' % value
 
                         if value == 57005:
                             # we found a DEAD, let's see if it aligns with a previous DEAD
