@@ -6,7 +6,7 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, control_protobuf_conn):
+    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
@@ -16,6 +16,12 @@ class ControlClient(asyncore.dispatcher):
         # sends ACK messages back to NetworkController
         self.control_protobuf_conn = control_protobuf_conn
 
+        # threading.Condition variable to notify NetworkController when an ACK has been sent back up
+        self.ack_msg_from_cc_cond = ack_msg_from_cc_cond
+
+        # threading.Event variable for notifying NetworkController that we have connected to server (async)
+        self.connected_cond = connected_event
+
         # holds serialized messages that have been received but not processed
         self.incoming_queue = mp.Queue()
 
@@ -23,13 +29,11 @@ class ControlClient(asyncore.dispatcher):
         # control_socket but have not yet been ACKed
         self.sent_dict = {}
 
-        self.host = host
-        self.port = port
         self.connected = False
 
-    def connect_control_port(self):
+    def connect_control_port(self, host, port):
         print 'ControlClient: attempting connection'
-        self.connect((self.host, self.port))
+        self.connect((host, port))
         self.connected = True
 
     def close_control_port(self):
@@ -39,6 +43,8 @@ class ControlClient(asyncore.dispatcher):
 
     def handle_connect(self):
         print 'ControlClient: handle_connect() entered'
+        # notify NetworkController that we are connected
+        self.connected_event.set()
 
     def handle_close(self):
         self.connected = False
@@ -47,6 +53,7 @@ class ControlClient(asyncore.dispatcher):
     def handle_read(self):
         # read 16 bit length header	
         size = bytearray(2)
+        # TODO: wrap in try/except and handle Connection Refused socket.error
         self.recv_into(size)
         length = size[0]
         print 'ControlClient: received length header: %s' % length
@@ -55,7 +62,7 @@ class ControlClient(asyncore.dispatcher):
         msg = self.recv(int(length))
         print 'ControlClient: received message: %s' % msg
 
-        # TODO: put onto incoming_queue and have another thread handle the parsing
+        # TODO: (probably not necessary) put onto incoming_queue and have another thread handle the parsing
 
         # construct a container protobuf and parse into from serialized message
         ackWrapper = control_signals_pb2.RequestWrapper()
@@ -67,6 +74,8 @@ class ControlClient(asyncore.dispatcher):
             serialized_acked_request = self.sent_dict.pop(sequence)
             print 'ControlClient: ACKed request popped %s' % serialized_acked_request
             self.control_protobuf_conn.send(serialized_acked_request)
+            with self.ack_msg_from_cc_cond:
+                self.ack_msg_from_cc_cond.notify()
 
     def readable(self):
         return True
@@ -94,4 +103,8 @@ class ControlClient(asyncore.dispatcher):
         print 'ControlClient: sent message bytes: %d' % sent
 
         print 'ControlClient: adding request %d to sent_dict' % request_wrapper.sequence
-        self.sent_dict[request_wrapper.sequence] = serialized_req_wrap
+        if request_wrapper.sequence not in self.sent_dict.keys():
+            self.sent_dict[request_wrapper.sequence] = serialized_req_wrap
+        else:
+            raise RuntimeWarning('ControlClient: requestWrapper with sequence %d already in sent_dict' %
+                                 request_wrapper.sequence)

@@ -28,25 +28,31 @@ class DaqulaApplication(mp.Process):
         self.reading_to_be_stored_cond = mp.Condition()
         self.readings_to_be_plotted_cond = mp.Condition()
         self.filepath_available_cond = mp.Condition()
+        self.control_msg_from_gui_cond = mp.Condition()
+        self.control_msg_from_nc_cond = mp.Condition()
 
         self.gui = MainWindow(control_conn=self.gui_control_conn,
                               data_receiver=self.gui_data_receiver,
                               filepath_sender=self.filepath_sender,
                               readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
-                              filepath_available_cond=self.filepath_available_cond)
+                              filepath_available_cond=self.filepath_available_cond,
+                              control_msg_from_gui_cond=self.control_msg_from_gui_cond,
+                              control_msg_from_nc_cond=self.control_msg_from_nc_cond)
 
         self.nc = NetworkController(storage_sender=self.storage_sender,
                                     gui_control_conn=self.nc_control_conn,
                                     gui_data_sender=self.gui_data_sender,
                                     reading_to_be_stored_cond=self.reading_to_be_stored_cond,
-                                    readings_to_be_plotted_cond=self.readings_to_be_plotted_cond)
+                                    readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
+                                    control_msg_from_gui_cond=self.control_msg_from_gui_cond,
+                                    control_msg_from_nc_cond=self.control_msg_from_nc_cond)
 
         self.sc = StorageController(storage_receiver=self.storage_receiver,
                                     filepath_receiver=self.filepath_receiver,
                                     reading_to_be_stored_cond=self.reading_to_be_stored_cond,
                                     filepath_available_cond=self.filepath_available_cond)
 
-        # self.nc.start()
+        self.nc.start()
         self.sc.start()
 
         sys.exit(self.gui_app.exec_())

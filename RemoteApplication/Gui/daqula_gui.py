@@ -8,10 +8,13 @@ from pyqtgraph.ptime import time
 import os
 from datetime import datetime
 import multiprocessing as mp
+import threading
+import Queue
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, control_conn, data_receiver, filepath_sender,
-                 readings_to_be_plotted_cond, filepath_available_cond):
+                 readings_to_be_plotted_cond, filepath_available_cond,
+                 control_msg_from_gui_cond, control_msg_from_nc_cond):
         super(MainWindow, self).__init__()
 
         # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
@@ -28,6 +31,29 @@ class MainWindow(QtGui.QMainWindow):
 
         # mp.Condition variable to notify StorageController that it should update its filepath
         self.filepath_available_cond = filepath_available_cond
+
+        # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
+        self.control_msg_from_gui_cond = control_msg_from_gui_cond
+        self.control_msg_from_nc_cond = control_msg_from_nc_cond
+
+        # UI event handlers will place messages into this queue to be sent by control_send_thread
+        self.send_queue = Queue.Queue()
+        self.msg_to_be_sent_cond = threading.Condition()
+
+        self.sequence = 0
+        self.sequence_lock = threading.Lock()
+
+        # sent_dict holds control messages that have been sent to NetworkController but not yet ACKed
+        self.sent_dict = {}
+        self.sent_dict_lock = threading.Lock()
+
+        # worker threads for asynchronously sending and receiving start/stop messages to/from NC
+        self.control_send_thread = threading.Thread(target=self.send_control_messages, args=[self.send_queue])
+        self.control_send_thread.daemon = True
+        self.control_recv_thread = threading.Thread(target=self.recv_control_messages)
+        self.control_recv_thread.daemon = True
+        self.control_send_thread.start()
+        self.control_recv_thread.start()
         
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.checkBoxes = CheckBoxes(self)
@@ -66,9 +92,25 @@ class MainWindow(QtGui.QMainWindow):
         self.filepath_sender.send(self.ui.fileEdit.text())
         with self.filepath_available_cond:
             self.filepath_available_cond.notify()
+
+        # construct connect control message
+        connect_msg = {}
+        with self.sequence_lock:
+            connect_msg['seq'] = self.sequence
+            self.sequence += 1
+        connect_msg['type'] = 'CONNECT'
+        connect_msg['host'] = '10.42.0.2' # TODO: grab from UI field
+        connect_msg['port'] = 10001 # TODO: grab from UI field
+        connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
+        connect_msg['rate'] = int(self.ui.sampleRate.text())
+
+        # put connect message in queue to be sent to NetworkController and notify sender thread
+        self.send_queue.put(connect_msg)
+        with self.msg_to_be_sent_cond:
+            self.msg_to_be_sent_cond.notify()
         print "Connect Flag!"
         
-        
+        # TODO: change behavior to disable until the ACK is received
         self.ui.connectButton.setText('Disconnect')
         self.ui.connectButton.clicked.disconnect()
         self.ui.connectButton.clicked.connect(self.disconnect)
@@ -95,6 +137,36 @@ class MainWindow(QtGui.QMainWindow):
         if (saveFile):
             self.ui.fileEdit.setText(saveFile)
             open( str(self.ui.fileEdit.text()), 'a').close()
+
+    # control_send_thread target
+    def send_control_messages(self, *args):
+        send_queue = args[0]
+        while True:
+            if not send_queue.empty():
+                msg = send_queue.get()
+                self.control_conn.send(msg)
+                with self.control_msg_from_gui_cond:
+                    self.control_msg_from_gui_cond.notify()
+                with self.sent_dict_lock:
+                    self.sent_dict[msg['seq']] = msg
+            else:
+                with self.msg_to_be_sent_cond:
+                    self.msg_to_be_sent_cond.wait()
+
+    def recv_control_messages(self):
+        while True:
+            if self.control_conn.poll():
+                response = self.control_conn.recv()
+                with self.sent_dict_lock:
+                    if response['seq'] in self.sent_dict.keys():
+                        self.sent_dict.pop(response['seq'])
+                        print 'GUI: received reply from NC, %s' % response
+                        # TODO: take some action to post message on UI, enable buttons, etc.
+                    else:
+                        raise RuntimeWarning('unexpected message received from NetworkController')
+            else:
+                with self.control_msg_from_nc_cond:
+                    self.control_msg_from_nc_cond.wait()
         
 #     def showdialog(self):
 #         msg = QMessageBox()
