@@ -9,8 +9,8 @@ from data_client import DataClient
 
 
 class NetworkController(mp.Process):
-    def __init__(self, storage_sender, gui_control_conn, gui_data_sender,
-                 reading_to_be_stored_cond, readings_to_be_plotted_cond,
+    def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
+                 file_header_available_cond, reading_to_be_stored_event, readings_to_be_plotted_cond,
                  control_msg_from_gui_cond, control_msg_from_nc_cond):
         super(NetworkController, self).__init__()
 
@@ -24,8 +24,12 @@ class NetworkController(mp.Process):
         # mp.Connection for sending ADC readings to GUI for plotting
         self.gui_data_sender = gui_data_sender
 
+        # mp.Connection for sending start_time, channel_bitmask, and chunk_size to SC
+        self.file_header_sender = file_header_sender
+
         # IPC condition variables
-        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+        self.file_header_available_cond = file_header_available_cond
+        self.reading_to_be_stored_event = reading_to_be_stored_event
         self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
 
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
@@ -68,7 +72,7 @@ class NetworkController(mp.Process):
 
         self.data_client = DataClient(gui_data_sender=self.gui_data_sender,
                                       storage_sender=self.storage_sender,
-                                      reading_to_be_stored_cond=self.reading_to_be_stored_cond,
+                                      reading_to_be_stored_event=self.reading_to_be_stored_event,
                                       readings_to_be_plotted_cond=self.readings_to_be_plotted_cond)
 
         # receives request protobuf messages triggered by GUI events
@@ -225,6 +229,12 @@ class NetworkController(mp.Process):
                     assert start_request.channels == msg['channels']
                     self.data_client.update_active_channels(start_request.channels)
 
+                    # send header info to SC and notify
+                    header = (start_request.timestamp, start_request.channels, self.data_client.chunk_size)
+                    self.file_header_sender.send(header)
+                    with self.file_header_available_cond:
+                        self.file_header_available_cond.notify()
+
                     data_connect_success = self.connect_data_port(self.host, start_request.port)
 
                     print 'NetworkController: data_connect_success = %s' % data_connect_success
@@ -234,6 +244,7 @@ class NetworkController(mp.Process):
                         reply_msg = msg
                         reply_msg['success'] = True
                         reply_msg['message'] = 'Successfully connected control and data ports to host %s' % self.host
+                        reply_msg['timestamp'] = start_request.timestamp
 
                         # send an ACK message to GUI and notify its receiver
                         self.gui_control_conn.send(reply_msg)
