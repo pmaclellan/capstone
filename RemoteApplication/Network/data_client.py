@@ -7,7 +7,7 @@ import Queue # just needed for the Empty exception
 
 
 class DataClient():
-    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_cond, readings_to_be_plotted_cond):
+    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_event, readings_to_be_plotted_cond):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -23,7 +23,7 @@ class DataClient():
                                 '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
                                 '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
 
-        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+        self.reading_to_be_stored_event = reading_to_be_stored_event
 
         self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
 
@@ -47,8 +47,8 @@ class DataClient():
         self.receiver_thread.daemon = True
         self.sync_verification_thread = threading.Thread(target=self.verify_synchronization, args=[self.recv_stop_event])
         self.sync_verification_thread.daemon = True
-        self.parser_thread = threading.Thread(target=self.parse_readings, args=[self.recv_stop_event])
-        self.parser_thread.daemon = True
+        # self.parser_thread = threading.Thread(target=self.parse_readings, args=[self.recv_stop_event])
+        # self.parser_thread.daemon = True
 
         self.connected = False
         self.synchronized = False
@@ -75,14 +75,14 @@ class DataClient():
         self.recv_stop_event.set()
         self.receiver_thread.join()
         self.sync_verification_thread.join()
-        self.parser_thread.join()
+        # self.parser_thread.join()
         return True
 
     def start_sync_verification_thread(self):
         self.sync_verification_thread.start()
 
-    def start_parser_thread(self):
-        self.parser_thread.start()
+    # def start_parser_thread(self):
+    #     self.parser_thread.start()
 
     def update_active_channels(self, active_channels):
         self.active_channels = self.get_channels_from_bitmask(active_channels)
@@ -112,7 +112,7 @@ class DataClient():
         print 'DataClient: starting data threads'
         self.start_receiver_thread()
         self.start_sync_verification_thread()
-        self.start_parser_thread()
+        # self.start_parser_thread()
 
         print 'DataClient.connected = %s' % self.connected
 
@@ -266,6 +266,7 @@ class DataClient():
     def verify_synchronization(self, *args):
         stop_event = args[0]
         readings_verified = 0
+        reading_byte_length = self.chunk_byte_length / self.chunk_size
 
         while not stop_event.is_set():
             # for testing purposes only
@@ -279,11 +280,15 @@ class DataClient():
                 assert len(reading) == self.chunk_byte_length
                 if reading[0] == 173 and reading[1] == 222: # 173 == 0xAD, 222 == 0xDE
                     # all good, found DEAD where we expected
-                    self.pipeline_sender.send(reading)
+                    # only send the first reading to GUI to avoid extra data transfer overhead
+                    self.gui_data_sender.send(reading[:reading_byte_length])
+                    self.storage_sender.send(reading)
+                    # notify the gui and storage controller that they have work to do
+                    self.reading_to_be_stored_event.set()
+                    with self.readings_to_be_plotted_cond:
+                        self.readings_to_be_plotted_cond.notify()
+                    # for testing purposes only
                     readings_verified += 1
-                    # notify the parser that it has work to do
-                    with self.reading_available_to_parse_cond:
-                        self.reading_available_to_parse_cond.notify()
                 else:
                     with self.synchronized_lock:
                         self.synchronized = False
