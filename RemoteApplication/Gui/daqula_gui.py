@@ -59,7 +59,7 @@ class MainWindow(QtGui.QMainWindow):
         self.checkBoxes = CheckBoxes(self)
         self.daq = DaqPlot(self)
         self.ui.show()
-        self.ui.connectButton.clicked.connect(self.connect)
+        self.ui.connectButton.clicked.connect(self.handle_connect)
         
         self.directory = os.path.dirname(__file__)
         self.fileTimestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
@@ -70,7 +70,7 @@ class MainWindow(QtGui.QMainWindow):
 #        self.cancel = False #used for stopping plotting process
         #self.ui.fileEdit.setText(QFileDialog.getSaveFileName(directory = self.directory + "\Data", filter = "*.h5"))
         
-    def connect(self):
+    def handle_connect(self):
         #if selected file doesn't exist yet, make it
         if not os.path.isfile(self.ui.fileEdit.text()):
             open( str(self.ui.fileEdit.text()), 'a').close()
@@ -113,12 +113,12 @@ class MainWindow(QtGui.QMainWindow):
         # TODO: change behavior to disable until the ACK is received
         self.ui.connectButton.setText('Disconnect')
         self.ui.connectButton.clicked.disconnect()
-        self.ui.connectButton.clicked.connect(self.disconnect)
+        self.ui.connectButton.clicked.connect(self.handle_disconnect)
         self.ui.fileEdit.setEnabled(False)
         self.ui.selectFileButton.setEnabled(False)
         self.ui.sampleRate.setEnabled(False)
         
-    def disconnect(self):
+    def handle_disconnect(self):
         self.ui.connectButton.setText('Connect')
         self.daq.stopPlot()
         
@@ -126,7 +126,7 @@ class MainWindow(QtGui.QMainWindow):
         print "Disconnect Flag!"
         
         self.ui.connectButton.clicked.disconnect()
-        self.ui.connectButton.clicked.connect(self.connect)
+        self.ui.connectButton.clicked.connect(self.handle_connect)
         self.checkBoxes.unlockBoxes()
         self.ui.fileEdit.setEnabled(True)
         self.ui.selectFileButton.setEnabled(True)
