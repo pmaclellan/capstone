@@ -184,6 +184,9 @@ class MainWindow(QtGui.QMainWindow):
                 self.settings.setValue(name, state)
     
     def handle_load_config(self):
+        if not os.path.isfile('Gui/settings.ini'):
+            return
+            
         for name, obj in inspect.getmembers(self.ui):
             if isinstance(obj, QComboBox):
                 index  = obj.currentIndex()    # get current region from combobox
