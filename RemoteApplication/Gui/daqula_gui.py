@@ -58,7 +58,14 @@ class MainWindow(QtGui.QMainWindow):
         self.control_recv_thread.daemon = True
         self.control_send_thread.start()
         self.control_recv_thread.start()
-        
+
+        # used to signal data thread to stop
+        self.stop_event = threading.Event()
+
+        # worker thread to receive ADC data stream from NC.DC for plotting
+        self.data_receiver_thread = threading.Thread(target=self.recv_data_stream, args=[self.stop_event])
+        self.data_receiver_thread.daemon = True
+
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.checkBoxes = CheckBoxes(self)
         self.daq = DaqPlot(self)
@@ -188,6 +195,7 @@ class MainWindow(QtGui.QMainWindow):
                             if response['success'] == True:
                                 # grab 64-bit Unix timestamp to add to each reading offset
                                 self.start_time = response['timestamp']
+                                self.data_receiver_thread.start()
 
                                 self.ui.connectButton.setText('Disconnect')
                                 self.ui.connectButton.clicked.disconnect()
@@ -209,6 +217,9 @@ class MainWindow(QtGui.QMainWindow):
 
                         elif response['type'] == 'DISCONNECT':
                             if response['success'] == True:
+                                # stop the data receiver thread
+                                self.stop_event.set()
+
                                 self.ui.connectButton.setText('Connect')
                                 self.ui.connectButton.clicked.disconnect()
                                 self.ui.connectButton.clicked.connect(self.handle_connect)
@@ -232,6 +243,18 @@ class MainWindow(QtGui.QMainWindow):
             else:
                 with self.control_msg_from_nc_cond:
                     self.control_msg_from_nc_cond.wait()
+
+    def recv_data_stream(self, *args):
+        stop_event = args[0]
+        while not stop_event.is_set():
+            if self.data_receiver.poll():
+                raw_reading = self.data_receiver.recv()
+                print 'GUI: received a reading of length %d bytes' % len(raw_reading)
+                # convert to numpy array or whatever
+                # send to plot
+            else:
+                with self.readings_to_be_plotted_cond:
+                    self.readings_to_be_plotted_cond.wait()
 
     # def showResultMessage(self, message):
     #     msg = QMessageBox()
