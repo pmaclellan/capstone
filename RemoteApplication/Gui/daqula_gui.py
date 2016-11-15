@@ -46,7 +46,10 @@ class MainWindow(QtGui.QMainWindow):
   
         self.sequence = 0
         self.sequence_lock = threading.Lock()
-  
+
+        # holds Unix timestamp sent from MicroZed that corresponds to the first sample time
+        self.start_time = 0
+ 
         # sent_dict holds control messages that have been sent to NetworkController but not yet ACKed
         self.sent_dict = {}
         self.sent_dict_lock = threading.Lock()
@@ -58,7 +61,14 @@ class MainWindow(QtGui.QMainWindow):
         self.control_recv_thread.daemon = True
         self.control_send_thread.start()
         self.control_recv_thread.start()
-        
+
+        # used to signal data thread to stop
+        self.stop_event = threading.Event()
+
+        # worker thread to receive ADC data stream from NC.DC for plotting
+        self.data_receiver_thread = threading.Thread(target=self.recv_data_stream, args=[self.stop_event])
+        self.data_receiver_thread.daemon = True
+
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.settings = QSettings('Gui/settings.ini', QSettings.IniFormat)
         self.handle_load_config()
@@ -74,14 +84,12 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.selectDirButton.clicked.connect(self.selectDir)
         
         self.directory = os.path.dirname(__file__)
-        if not os.path.exists(self.directory + "/Data"):
-            os.makedirs(self.directory + "/Data")
-        self.ui.fileEdit.setText(self.directory + "/Data")
-        
-        self.ui.serverIpEdit.setText("I am here")
-        self.ui.serverPortEdit.setText("I am here")
-        self.ui.sampleRateEdit.text()
-        
+        if not os.path.exists(self.directory + '/output'):
+            os.makedirs(self.directory + '/output')
+        self.ui.fileEdit.setText(self.directory + '/output')
+       
+        self.ui.serverIpEdit.setText('10.42.0.2')
+        self.ui.serverPortEdit.setText('10001')       
         
     def handle_connect(self):        
         #get active channels
@@ -108,8 +116,8 @@ class MainWindow(QtGui.QMainWindow):
             connect_msg['seq'] = self.sequence
             self.sequence += 1
         connect_msg['type'] = 'CONNECT'
-        connect_msg['host'] = '10.42.0.2' # TODO: grab from UI field
-        connect_msg['port'] = 10001 # TODO: grab from UI field
+        connect_msg['host'] = self.ui.serverIpEdit.text()
+        connect_msg['port'] = int(self.ui.serverPortEdit.text())
         connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
         connect_msg['rate'] = int(self.ui.sampleRateEdit.text())
 
@@ -243,6 +251,10 @@ class MainWindow(QtGui.QMainWindow):
                         # TODO: dear god please put this stuff into helper functions
                         if response['type'] == 'CONNECT':
                             if response['success'] == True:
+                                # grab 64-bit Unix timestamp to add to each reading offset
+                                self.start_time = response['timestamp']
+                                self.data_receiver_thread.start()
+
                                 self.ui.connectButton.setText('Disconnect')
                                 self.ui.connectButton.clicked.disconnect()
                                 self.ui.connectButton.clicked.connect(self.handle_disconnect)
@@ -267,6 +279,9 @@ class MainWindow(QtGui.QMainWindow):
 
                         elif response['type'] == 'DISCONNECT':
                             if response['success'] == True:
+                                # stop the data receiver thread
+                                self.stop_event.set()
+
                                 self.ui.connectButton.setText('Connect')
                                 self.ui.connectButton.clicked.disconnect()
                                 self.ui.connectButton.clicked.connect(self.handle_connect)
@@ -294,6 +309,18 @@ class MainWindow(QtGui.QMainWindow):
             else:
                 with self.control_msg_from_nc_cond:
                     self.control_msg_from_nc_cond.wait()
+
+    def recv_data_stream(self, *args):
+        stop_event = args[0]
+        while not stop_event.is_set():
+            if self.data_receiver.poll():
+                raw_reading = self.data_receiver.recv()
+                print 'GUI: received a reading of length %d bytes' % len(raw_reading)
+                # convert to numpy array or whatever
+                # send to plot
+            else:
+                with self.readings_to_be_plotted_cond:
+                    self.readings_to_be_plotted_cond.wait()
 
     # def showResultMessage(self, message):
     #     msg = QMessageBox()
