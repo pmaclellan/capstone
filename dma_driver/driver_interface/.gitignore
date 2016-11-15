@@ -1,2 +1,4 @@
 /Debug/
-/Debug-Cross/
+.settings/
+.project
+.cproject
