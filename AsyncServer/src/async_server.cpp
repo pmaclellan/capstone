@@ -250,9 +250,9 @@ void *control_task(void *dummy)
             read_data = false;
 
             // Send stop to fifo
-            uint32_t code = 1;
-            uint32_t sample_rate = start_request.rate();
-            uint64_t stop = code << 32 + sample_rate;
+            uint64_t code = 1;
+            uint64_t stop = code << 32;
+	    printf("stop: %lu\n", stop);
             send(socket_control, &stop, sizeof(stop), 0);
 
             // Read ack from controller
@@ -270,6 +270,12 @@ void *control_task(void *dummy)
                     close(client_fd[0]);
                     return NULL;
                 }
+		if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
+		{
+		    fprintf(stderr, "Failure Sending Messages\n");
+		    close(client_fd[0]);
+		    return NULL;
+		}
             }
             else
             {
