@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <inttypes.h>
 
 #include "control_signals.pb.h"
 
@@ -26,7 +27,7 @@
 // TODO: These are defined both in this server and in the driver_interface...
 // The server really should send these values to the interface for the driver
 // to configure the DMA
-#define NUM_PACKETS         4       // 4 packets
+#define NUM_PACKETS         24       // 4 packets
 #define LINES_PER_PACKET    9       // 1 header and 8 lines of data
 
 using namespace std;
@@ -210,7 +211,7 @@ void *control_task(void *dummy)
             // Send sample rate to controller
             uint64_t code = 0;
             uint64_t sample_rate = static_cast<uint64_t>(start_request.rate());
-            uint64_t sr_and_code = code & sample_rate;
+            uint64_t sr_and_code = sample_rate;
             send(socket_control, &sr_and_code, sizeof(sr_and_code), 0);
 
             // Read timestamp from controller
@@ -250,10 +251,8 @@ void *control_task(void *dummy)
             read_data = false;
 
             // Send stop to fifo
-            uint64_t code = 1;
-            uint64_t stop = code << 32;
-	    printf("stop: %lu\n", stop);
-            send(socket_control, &stop, sizeof(stop), 0);
+            uint64_t code = 0x0000000100000000;
+            send(socket_control, &code, sizeof(uint64_t), 0);
 
             // Read ack from controller
             uint64_t buff;
@@ -306,45 +305,60 @@ void *data_task(void *dummy)
     //      uint16_t
     uint16_t * buf;
     size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
-    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
-    { -1 };
-    buf = static_cast<uint16_t*>(malloc(bufSize));
-
-    // Get indexes for the start of every packet
-    int activeCount = 0;
-    // Loop through every packet
-    for(int i = 0; i < NUM_PACKETS; i++)
-    {
-        int packetIndex = i * LINES_PER_PACKET * 4;
-        // Add the 0xDEAD and the timestamp to the active indexes
-        for(int j = 0; j < sizeof(uint64_t); j++)
-        {
-            activeChannels[activeCount] = packetIndex + j;
-            activeCount++;
-        }
-        // Loop through the channels in that packet
-        for(int channel = 0; channel < NUM_CHANNELS; channel++)
-        {
-            if(adc_channels[channel] == 1)
-            {
-                activeChannels[activeCount] = packetIndex + sizeof(uint64_t) + channel;
-                activeCount++;
-            }
-        }
-    }
+//    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
+//    { -1 };
+    buf = static_cast<uint16_t *>(malloc(bufSize));
+//    // Get indexes for the start of every packet
+//    int activeCount = 0;
+//    // Loop through every packet
+//    for(int i = 0; i < NUM_PACKETS; i++)
+//    {
+//        int packetIndex = i * LINES_PER_PACKET * 4;
+//        // Add the 0xDEAD and the timestamp to the active indexes
+//        for(int j = 0; j < sizeof(uint64_t); j++)
+//        {
+//            activeChannels[activeCount] = packetIndex + j;
+//            activeCount++;
+//        }
+//        // Loop through the channels in that packet
+//        for(int channel = 0; channel < NUM_CHANNELS; channel++)
+//        {
+//            if(adc_channels[channel] == 1)
+//            {
+//                activeChannels[activeCount] = packetIndex + sizeof(uint64_t)
+//                        + channel;
+//                activeCount++;
+//            }
+//        }
+//    }
 
     // Open the DMA
+    printf("Trying to open the dma driver\n");
     int axiDmaFd = open("/dev/axidma_rx", O_RDONLY);
     while(1)
     {
         // Read some data from the DMA
+        //printf("Trying to read from the dma driver\n");
+        //printf("axidmaFd = %d, buf = %d, bufSize = %d\n", axiDmaFd, buf, bufSize);
         read(axiDmaFd, buf, bufSize);
+        //printf("reading %d bytes\n", bufSize);
 
         // Print the data the server has requested
+
+        for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
+        {
+            send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0);
+            //printf("Server sending 0x%" PRIx64 "\n", buf[i]);
+        }
+/*
         for(int i = 0; i < activeCount; i++)
         {
-            send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
+            if (activeChannels[i] != -1)
+            {
+                send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
+            }
         }
+*/
 
     }
 
