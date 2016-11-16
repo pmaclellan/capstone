@@ -1,7 +1,9 @@
 import sys
+import sip
+sip.setapi('QVariant',2)
 from PyQt4 import QtGui, uic, QtCore, QtGui
-from PyQt4.QtCore import QObject, pyqtSlot
-from PyQt4.QtGui import QFileDialog, QMessageBox
+from PyQt4.QtCore import *
+from PyQt4.QtGui import *
 import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.ptime import time
@@ -10,6 +12,7 @@ from datetime import datetime
 import multiprocessing as mp
 import threading
 import Queue
+import inspect
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -17,30 +20,30 @@ class MainWindow(QtGui.QMainWindow):
                  readings_to_be_plotted_cond, filepath_available_cond,
                  control_msg_from_gui_cond, control_msg_from_nc_cond):
         super(MainWindow, self).__init__()
-
+ 
         # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
         self.control_conn = control_conn
- 
+  
         # mp.Connection for receiving raw data stream for plotting
         self.data_receiver = data_receiver
- 
+  
         # mp.Connection for sending directory to store binary files in to StorageController
         self.filepath_sender = filepath_sender
- 
+  
         # mp.Condition variable to wait on for new set of readings to be available to be plotted
         self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
- 
+  
         # mp.Condition variable to notify StorageController that it should update its filepath
         self.filepath_available_cond = filepath_available_cond
- 
+  
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
         self.control_msg_from_gui_cond = control_msg_from_gui_cond
         self.control_msg_from_nc_cond = control_msg_from_nc_cond
- 
+  
         # UI event handlers will place messages into this queue to be sent by control_send_thread
         self.send_queue = Queue.Queue()
         self.msg_to_be_sent_cond = threading.Condition()
- 
+  
         self.sequence = 0
         self.sequence_lock = threading.Lock()
 
@@ -50,7 +53,7 @@ class MainWindow(QtGui.QMainWindow):
         # sent_dict holds control messages that have been sent to NetworkController but not yet ACKed
         self.sent_dict = {}
         self.sent_dict_lock = threading.Lock()
- 
+  
         # worker threads for asynchronously sending and receiving start/stop messages to/from NC
         self.control_send_thread = threading.Thread(target=self.send_control_messages, args=[self.send_queue])
         self.control_send_thread.daemon = True
@@ -67,6 +70,9 @@ class MainWindow(QtGui.QMainWindow):
         self.data_receiver_thread.daemon = True
 
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
+        self.settings = QSettings('Gui/settings.ini', QSettings.IniFormat)
+        self.handle_load_config()
+        
         self.checkBoxes = CheckBoxes(self)
         self.daq = DaqPlot(self)
         self.ui.show()
@@ -81,16 +87,11 @@ class MainWindow(QtGui.QMainWindow):
         if not os.path.exists(self.directory + '/output'):
             os.makedirs(self.directory + '/output')
         self.ui.fileEdit.setText(self.directory + '/output')
-        
+       
         self.ui.serverIpEdit.setText('10.42.0.2')
-        self.ui.serverPortEdit.setText('10001')
+        self.ui.serverPortEdit.setText('10001')       
         
-        
-    def handle_connect(self):
-        #if selected file doesn't exist yet, make it
-        if not os.path.isfile(self.ui.fileEdit.text()):
-            open( str(self.ui.fileEdit.text()), 'a').close()
-        
+    def handle_connect(self):        
         #get active channels
         numPlots = self.checkBoxes.numActive()
         if not numPlots:
@@ -102,7 +103,7 @@ class MainWindow(QtGui.QMainWindow):
         #send to Pete
         print self.checkBoxes.getActiveChannels()
         print self.ui.fileEdit.text()
-        print self.ui.sampleRate.text()
+        print self.ui.sampleRateEdit.text()
 
         # TODO: input validation
         self.filepath_sender.send(self.ui.fileEdit.text())
@@ -118,7 +119,7 @@ class MainWindow(QtGui.QMainWindow):
         connect_msg['host'] = self.ui.serverIpEdit.text()
         connect_msg['port'] = int(self.ui.serverPortEdit.text())
         connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
-        connect_msg['rate'] = int(self.ui.sampleRate.text())
+        connect_msg['rate'] = int(self.ui.sampleRateEdit.text())
 
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
@@ -132,7 +133,9 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.connectButton.setEnabled(False)
         self.ui.fileEdit.setEnabled(False)
         self.ui.selectDirButton.setEnabled(False)
-        self.ui.sampleRate.setEnabled(False)
+        self.ui.sampleRateEdit.setEnabled(False)
+        self.ui.loadConfig.setEnabled(False)
+        self.ui.saveConfig.setEnabled(False)
         
     def handle_disconnect(self):
         self.ui.connectButton.setText('Connect')
@@ -157,10 +160,68 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.connectButton.setEnabled(False)
         
     def handle_save_config(self):
-        print "save config"
+        for name, obj in inspect.getmembers(self.ui):
+            #if type(obj) is QComboBox:  # this works similar to isinstance, but missed some field... not sure why?
+            if isinstance(obj, QComboBox):
+                name   = obj.objectName()      # get combobox name
+                index  = obj.currentIndex()    # get current index from combobox
+                text   = obj.itemText(index)   # get the text for current index
+                self.settings.setValue(name, text)   # save combobox selection to registry
+                
+            if isinstance(obj, QSpinBox):
+                name = obj.objectName()
+                value = obj.text()
+                self.settings.setValue(name, value)
+                
+            if isinstance(obj, QLineEdit):
+                name = obj.objectName()
+                value = obj.text()
+                self.settings.setValue(name, value)    # save ui values, so they can be restored next time
+    
+            if isinstance(obj, QCheckBox):
+                name = obj.objectName()
+                state = obj.checkState()
+                self.settings.setValue(name, state)
     
     def handle_load_config(self):
-        print "load config"
+        if not os.path.isfile('Gui/settings.ini'):
+            return
+            
+        for name, obj in inspect.getmembers(self.ui):
+            if isinstance(obj, QComboBox):
+                index  = obj.currentIndex()    # get current region from combobox
+                #text   = obj.itemText(index)   # get the text for new selected index
+                name   = obj.objectName()
+    
+                value = unicode(self.settings.value(name))  
+    
+                if value == "":
+                    continue
+    
+                index = obj.findText(value)   # get the corresponding index for specified string in combobox
+    
+                if index == -1:  # add to list if not found
+                    obj.insertItems(0,[value])
+                    index = obj.findText(value)
+                    obj.setCurrentIndex(index)
+                else:
+                    obj.setCurrentIndex(index)   # preselect a combobox value by index    
+    
+            if isinstance(obj, QLineEdit):
+                name = obj.objectName()
+                value = unicode(self.settings.value(name))  # get stored value from registry
+                obj.setText(value)  # restore lineEditFile
+                
+            if isinstance(obj, QSpinBox):
+                name = obj.objectName()
+                value = unicode(self.settings.value(name))
+                obj.setValue(int(value))
+    
+            if isinstance(obj, QCheckBox):
+                name = obj.objectName()
+                value = self.settings.value(name)   # get stored value from registry
+                if value != None:
+                    obj.setCheckState(int(value))   # restore checkbox
     
     def selectDir(self):
         saveDir = QFileDialog.getExistingDirectory(directory = self.directory)
@@ -203,7 +264,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.connectButton.setEnabled(True)
                                 self.ui.fileEdit.setEnabled(False)
                                 self.ui.selectDirButton.setEnabled(False)
-                                self.ui.sampleRate.setEnabled(False)
+                                self.ui.sampleRateEdit.setEnabled(False)
+                                self.ui.loadConfig.setEnabled(False)
+                                self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
                             else:
                                 self.ui.connectButton.setText('Connect')
@@ -212,7 +275,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.connectButton.setEnabled(True)
                                 self.ui.fileEdit.setEnabled(True)
                                 self.ui.selectDirButton.setEnabled(True)
-                                self.ui.sampleRate.setEnabled(True)
+                                self.ui.sampleRateEdit.setEnabled(True)
+                                self.ui.loadConfig.setEnabled(True)
+                                self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
 
                         elif response['type'] == 'DISCONNECT':
@@ -226,7 +291,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.connectButton.setEnabled(True)
                                 self.ui.fileEdit.setEnabled(True)
                                 self.ui.selectDirButton.setEnabled(True)
-                                self.ui.sampleRate.setEnabled(True)
+                                self.ui.sampleRateEdit.setEnabled(True)
+                                self.ui.loadConfig.setEnabled(True)
+                                self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
                             else:
                                 self.ui.connectButton.setText('Disconnect')
@@ -235,7 +302,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.connectButton.setEnabled(True)
                                 self.ui.fileEdit.setEnabled(False)
                                 self.ui.selectDirButton.setEnabled(False)
-                                self.ui.sampleRate.setEnabled(False)
+                                self.ui.sampleRateEdit.setEnabled(False)
+                                self.ui.loadConfig.setEnabled(False)
+                                self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
                         # self.showResultMessage(response)
                     else:
@@ -451,10 +520,9 @@ class CheckBoxes:
             #self.parent.daq.nPlots = self.parent.daq.nPlots + 1
             self.parent.ui.daqPlot.addItem(self.parent.daq.curves[2])
 
-"""
-if __name__ == "__main__":
-    ## Always start by initializing Qt (only once per application)
-    app = QtGui.QApplication(sys.argv)
-    window = MainWindow()
-    sys.exit(app.exec_())
-"""
+
+# if __name__ == "__main__":
+#     ## Always start by initializing Qt (only once per application)
+#     app = QtGui.QApplication(sys.argv)
+#     window = MainWindow()
+#     sys.exit(app.exec_())
