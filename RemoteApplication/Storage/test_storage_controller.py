@@ -10,7 +10,63 @@ import os.path
 import glob
 import subprocess
 
+storage_receiver, storage_sender = mp.Pipe(duplex=False)
+filepath_receiver, filepath_sender = mp.Pipe(duplex=False)
+file_header_receiver, file_header_sender = mp.Pipe(duplex=False)
+reading_to_be_stored_event = mp.Event()
+filepath_available_cond = mp.Condition()
+file_header_available_cond = mp.Condition()
+
+reading = bytearray([0xad, 0xde, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
+                     0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee])
+
+chunk_size = 20
+active_channels = 0xffff
+start_time = 1478300446552583
+
 class TestFunctionality:
+    def test_binary_writer(self):
+        input_length = 1000
+        sc = StorageController(storage_receiver, filepath_receiver, file_header_receiver,
+                               reading_to_be_stored_event, filepath_available_cond, file_header_available_cond)
+
+        sc.start()
+
+        sc.expected_records = input_length
+
+        filepath_sender.send('/Users/pmaclellan/capstone/RemoteApplication/Storage/testdir/')
+        with filepath_available_cond:
+            filepath_available_cond.notify()
+
+        file_header_sender.send((start_time, active_channels, chunk_size))
+        with file_header_available_cond:
+            file_header_available_cond.notify()
+
+        time.sleep(1)
+
+        chunk = bytearray(0)
+        for i in range(chunk_size):
+            chunk += reading
+
+        start = time.time()
+
+        for i in range(input_length):
+            storage_sender.send(chunk)
+            reading_to_be_stored_event.set()
+
+        elapsed = time.time() - start
+
+        speed = 1 / (elapsed / input_length)
+
+        print '\n\nFile Writer: effective frequency over %d samples is %d Hz\n' % (input_length, speed)
+
     @pytest.mark.skip
     def test_grabbuffer_single(self):
         # StorageController should automatically consume data from the ingoing_buffer

@@ -32,9 +32,10 @@ class StorageController(mp.Process):
         self.from_reader, self.to_writer = mp.Pipe(duplex=False)
 
         # Create worker threads
-        self.reader_thread = threading.Thread(target=self.grabbuffer)
+        # self.reader_thread = threading.Thread(target=self.grabbuffer)
         self.writer_thread = threading.Thread(target=self.write_binary_files)
         self.filepath_listener_thread = threading.Thread(target=self.listen_for_filepath_update)
+        self.file_header_listener_thread = threading.Thread(target=self.listen_for_file_header_update)
 
         self.stop_event = threading.Event()
 
@@ -43,7 +44,7 @@ class StorageController(mp.Process):
         self.start_time = 0
 
         # channel_bitmask will be sent along with start_time by the NetworkController upon connecting to server
-        self.channel_bitmask = 0xffff
+        self.channel_bitmask = 0x0000
         self.chunk_size = 0
 
         # filepath is the absolute directory path to write files to
@@ -57,9 +58,10 @@ class StorageController(mp.Process):
         self.file_writer_done_cond = threading.Condition()
 
     def run(self):
-        self.reader_thread.start()
+        # self.reader_thread.start()
         self.writer_thread.start()
         self.filepath_listener_thread.start()
+        self.file_header_listener_thread.start()
         self.writer_thread.join()
 
     # TODO: call upon successful DataClient connection
@@ -77,6 +79,9 @@ class StorageController(mp.Process):
             if self.filepath_receiver.poll():
                 with self.filepath_lock:
                     self.filepath = self.filepath_receiver.recv()
+                    if not os.path.exists(self.filepath):
+                        print '%s not found, creating...' % self.filepath
+                        os.makedirs(self.filepath)
                 print 'StorageController: updated filepath to %s' % self.filepath
                 # TODO: input validation
             else:
@@ -92,16 +97,21 @@ class StorageController(mp.Process):
                     self.file_header_available_cond.wait()
 
     def write_binary_files(self):
-        print 'write_binary_files() not implemented'
         filesize_threshold = 1000
+        records_written = 0
+
         while not self.stop_event.is_set():
             # wait to have something to write before we open a new file
+            print self.reading_to_be_stored_event.is_set()
             self.reading_to_be_stored_event.wait()
             self.reading_to_be_stored_event.clear()
             bytes_written = 0
-            filename = time.strftime('%Y%m%d%H%M%S')
-            f = open(self.filepath + filename, 'wb')
-            print 'StorageController: opened a new file: %s' % filename
+            filename = time.strftime('%Y%m%d%H%M%S') + '.daqula'
+            print '\nself.filepath = %s\n' % self.filepath
+            file_to_open = self.filepath + filename
+            print '\nfilename = %s\n' % file_to_open
+            f = open(file_to_open, 'wb')
+            # print 'StorageController: opened a new file: %s' % filename
             f.write(str(self.start_time) + '\n')
             f.write(str(self.channel_bitmask) + '\n')
             f.write(str(self.chunk_size) + '\n')
@@ -109,14 +119,19 @@ class StorageController(mp.Process):
                 if self.storage_receiver.poll():
                     reading = self.storage_receiver.recv()
                     f.write(reading + '\n')
+                    records_written += 1
+                    # for testing purposes only
+                    if records_written >= self.expected_records:
+                        with self.file_writer_done_cond:
+                            self.file_writer_done_cond.notify()
                 else:
-                    result = self.reading_to_be_stored_event.wait(3.0)
-                    if result:
+                    timed_out = not self.reading_to_be_stored_event.wait(3.0)
+                    if timed_out:
+                        break
+                    else:
                         self.reading_to_be_stored_event.clear()
                         continue
-                    else: # timed out
-                        break
-            print 'StorageController: filesize exceeds limit or we timed out, closing and opening another'
+            # print 'StorageController: filesize exceeds limit or we timed out, closing and opening another'
             f.close()
         if f and not f.closed:
             f.close()
@@ -194,5 +209,4 @@ class StorageController(mp.Process):
                 reading = self.storage_receiver.recv()
                 self.process_reading(reading)
             else:
-                with self.reading_to_be_stored_cond:
-                    self.reading_to_be_stored_cond.wait()
+                self.reading_to_be_stored_event.wait()
