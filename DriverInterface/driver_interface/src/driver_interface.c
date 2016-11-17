@@ -54,7 +54,7 @@ int main(void)
             // This is a stop request
             processStopRequest();
             // Send stopped message to server
-            sendToServer(clientSock, 1); // 1 = ACK
+            sendToServer(clientSock, 0x0000000000000001); // 1 = ACK
             // Set the status as EMBRYO again
             Status = EMBRYO;
         }

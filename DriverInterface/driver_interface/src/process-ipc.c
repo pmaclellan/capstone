@@ -16,6 +16,8 @@
 #include <time.h>
 #include "axi-dma.h"
 
+#define BILLION 1000000000L
+#define DMA_TIMER_FREQ 0x5F5E100 // 100MHz
 #define MAX_CONNECTIONS 5
 #define SOCK_PATH "/tmp/controller.sock"
 
@@ -101,19 +103,30 @@ void sendToServer(int clientSocket, uint64_t value)
 
 uint64_t processStartRequest(uint64_t buf)
 {
+    uint64_t retValue;
+    struct timespec currentTime;
+
     // Get the current time
-    time_t currentTime = time(NULL);
+    clock_gettime(CLOCK_REALTIME, &currentTime);
+
+    // Convert time to a uint64_t
+    retValue = BILLION * currentTime.tv_sec + currentTime.tv_nsec;
 
     // Get the sample frequency from the request
-    uint16_t sampleFreq = (uint16_t)(buf & 0xFFFF);
+    uint32_t sampleFreq = (uint32_t)(buf & 0xFFFFFFFF);
+
+    // Sample frequency is in Hz... convert according to:
+    // configValue = 100MHz / sampleFreq
+    uint16_t configValue = (uint16_t)(DMA_TIMER_FREQ / sampleFreq);
 
     // Start the DMA
-    startDMA(sampleFreq);
+    printf("Configuring dma with 0x%04x\n", configValue);
+    startDMA(configValue);
 
     // TODO: Await started status from DMA
 
     // Return the time
-    return (uint64_t)currentTime;
+    return (uint64_t)retValue;
 }
 
 void processStopRequest()

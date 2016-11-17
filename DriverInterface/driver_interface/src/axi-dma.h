@@ -9,7 +9,7 @@
 #define SRC_AXI_DMA_H_
 
 #define SCLK_FREQUENCY      2       // 2 = 25MHz
-#define NUM_PACKETS         4       // 4 packets
+#define NUM_PACKETS         24       // 4 packets
 #define LINES_PER_PACKET    9       // 1 header and 8 lines of data
 
 typedef enum
