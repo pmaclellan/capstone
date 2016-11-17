@@ -99,6 +99,8 @@ class StorageController(mp.Process):
     def write_binary_files(self):
         filesize_threshold = 368000000
         records_written = 0
+        bytes_written = 0
+        MB_written = 0
         f = None
 
         while not self.stop_event.is_set():
@@ -136,10 +138,13 @@ class StorageController(mp.Process):
                     else:
                         self.reading_to_be_stored_event.clear()
                         continue
+            MB_written += bytes_written / 1000000
             f.close()
         if f is not None and not f.closed:
             logging.debug('StorageController: binary writer thread terminating, closing open file')
+            MB_written += bytes_written / 1000000
             f.close()
+        logging.debug('StorageController: file writer exiting, wrote %d MB', MB_written)
 
 
     # def writeHDF5files(self):
