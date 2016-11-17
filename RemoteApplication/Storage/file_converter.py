@@ -4,6 +4,7 @@ import h5py
 import numpy as np
 import sys
 from os import listdir
+import multiprocessing
 
 # generate list of strings from bitmask
 def get_channels_from_bitmask(bitmask):
@@ -18,7 +19,8 @@ def get_channels_from_bitmask(bitmask):
   return active_channels
 
 def convert_file(file, source_dir, output_dir):
-	print 'starting conversion of %s' % file
+	print '%s starting conversion of %s' % \
+		(multiprocessing.current_process().name, file)
 	fbin = open(source_dir + file, 'rb')
 	outfile = file.split('.')[0] + '.h5'
 	fout = h5py.File(output_dir + outfile, 'a')
@@ -80,7 +82,8 @@ def convert_file(file, source_dir, output_dir):
 
 	fout.close()
 	fbin.close()
-	print 'conversion done, %s produced' % outfile
+	print '%s finished conversion, %s produced' % \
+		(multiprocessing.current_process().name, outfile)
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
@@ -96,6 +99,11 @@ if __name__ == "__main__":
 	else:
 		output_dir = source_dir
 
+	pool = multiprocessing.Pool()
+
 	files = [f for f in listdir(source_dir) if f.endswith('.daqula')]
 	for file in files:
-		success = convert_file(file, source_dir, output_dir)
+		pool.apply_async(convert_file, (file, source_dir, output_dir))
+	pool.close()
+	pool.join()
+	print 'all files converted!'

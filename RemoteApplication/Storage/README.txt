@@ -29,6 +29,10 @@ absolute timestamp of any given reading.
 
 ###########################  File Converter Script  ###########################
 
+NOTE: The conversion process is very slow and CPU intensive. Be patient!
+In an effort to reduce conversion time, files will be processed by a pool of
+worker processes based on the number of CPU cores the machine has.
+
 There is a python script in the Storage directory named 'file_converter.py'.
 It converts the binary '.daqula' files into HDF5 files.
 
