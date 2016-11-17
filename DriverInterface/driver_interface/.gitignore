@@ -1,5 +1,7 @@
-/Debug/
+/Debug/DriverInterface
+/Debug/src/
+/Debug/*.mk
 /Debug-Cross/
-.settings/
 .project
+.settings/
 .cproject
