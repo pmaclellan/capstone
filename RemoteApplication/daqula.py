@@ -52,12 +52,12 @@ class DaqulaApplication(mp.Process):
         # NC -> SC
         self.file_header_receiver, self.file_header_sender = mp.Pipe(duplex=False)
 
-        # Create Condition variables
+        # Create Event variables
         self.readings_to_be_plotted_event = mp.Event()
         self.filepath_available_event = mp.Event()
         self.file_header_available_event = mp.Event()
         self.control_msg_from_gui_event = mp.Event()
-        self.control_msg_from_nc_cond = mp.Condition()
+        self.control_msg_from_nc_event = mp.Event()
 
         # Create Event variables for things that need timeout functionality
         self.reading_to_be_stored_event = mp.Event()
@@ -68,7 +68,7 @@ class DaqulaApplication(mp.Process):
                               readings_to_be_plotted_event=self.readings_to_be_plotted_event,
                               filepath_available_event=self.filepath_available_event,
                               control_msg_from_gui_event=self.control_msg_from_gui_event,
-                              control_msg_from_nc_cond=self.control_msg_from_nc_cond)
+                              control_msg_from_nc_event=self.control_msg_from_nc_event)
 
         self.nc = NetworkController(storage_sender=self.storage_sender,
                                     gui_control_conn=self.nc_control_conn,
@@ -78,7 +78,7 @@ class DaqulaApplication(mp.Process):
                                     reading_to_be_stored_event=self.reading_to_be_stored_event,
                                     readings_to_be_plotted_event=self.readings_to_be_plotted_event,
                                     control_msg_from_gui_event=self.control_msg_from_gui_event,
-                                    control_msg_from_nc_cond=self.control_msg_from_nc_cond)
+                                    control_msg_from_nc_event=self.control_msg_from_nc_event)
 
         self.sc = StorageController(storage_receiver=self.storage_receiver,
                                     filepath_receiver=self.filepath_receiver,

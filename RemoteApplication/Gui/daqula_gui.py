@@ -19,7 +19,7 @@ import logging
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, control_conn, data_receiver, filepath_sender,
                  readings_to_be_plotted_event, filepath_available_event,
-                 control_msg_from_gui_event, control_msg_from_nc_cond):
+                 control_msg_from_gui_event, control_msg_from_nc_event):
         super(MainWindow, self).__init__()
  
         # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
@@ -39,7 +39,7 @@ class MainWindow(QtGui.QMainWindow):
   
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
         self.control_msg_from_gui_event = control_msg_from_gui_event
-        self.control_msg_from_nc_cond = control_msg_from_nc_cond
+        self.control_msg_from_nc_event = control_msg_from_nc_event
   
         # UI event handlers will place messages into this queue to be sent by control_send_thread
         self.send_queue = Queue.Queue()
@@ -304,8 +304,10 @@ class MainWindow(QtGui.QMainWindow):
                     else:
                         raise RuntimeWarning('unexpected message received from NetworkController')
             else:
-                with self.control_msg_from_nc_cond:
-                    self.control_msg_from_nc_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.control_msg_from_nc_event.wait(1.0):
+                        self.control_msg_from_nc_event.clear()
+                        break
 
     def recv_data_stream(self, *args):
         stop_event = args[0]

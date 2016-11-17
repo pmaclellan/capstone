@@ -13,7 +13,7 @@ import logging
 class NetworkController(mp.Process):
     def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
                  file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_event,
-                 control_msg_from_gui_event, control_msg_from_nc_cond):
+                 control_msg_from_gui_event, control_msg_from_nc_event):
         super(NetworkController, self).__init__()
 
         # mp.Connection for sending readings from DataClient to StorageController
@@ -36,7 +36,7 @@ class NetworkController(mp.Process):
 
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
         self.control_msg_from_gui_event = control_msg_from_gui_event
-        self.control_msg_from_nc_cond = control_msg_from_nc_cond
+        self.control_msg_from_nc_event = control_msg_from_nc_event
 
         # used to stop listener threads and terminate the process gracefully
         self.stop_event = mp.Event()
@@ -193,8 +193,7 @@ class NetworkController(mp.Process):
                         reply_msg['success'] = False
                         reply_msg['message'] = 'Failed to connect ControlClient to %s:%d' % (self.host, self.port)
                         self.gui_control_conn.send(reply_msg)
-                        with self.control_msg_from_nc_cond:
-                            self.control_msg_from_nc_cond.notify()
+                        self.control_msg_from_nc_event.set()
 
                 elif msg['type'] == 'DISCONNECT':
                     # construct a StopRequest protobuf message
@@ -266,8 +265,7 @@ class NetworkController(mp.Process):
 
                         # send an ACK message to GUI and notify its receiver
                         self.gui_control_conn.send(reply_msg)
-                        with self.control_msg_from_nc_cond:
-                            self.control_msg_from_nc_cond.notify()
+                        self.control_msg_from_nc_event.set()
 
                     else:
                         # construct a failure reply message
@@ -277,8 +275,7 @@ class NetworkController(mp.Process):
                                                (self.host, start_request.port)
 
                         self.gui_control_conn.send(reply_msg)
-                        with self.control_msg_from_nc_cond:
-                            self.control_msg_from_nc_cond.notify()
+                        self.control_msg_from_nc_event.set()
 
                 elif ack_wrapper.HasField('stop') and self.data_client.connected:
                     data_port_disconnected = self.close_data_port()
@@ -290,15 +287,13 @@ class NetworkController(mp.Process):
                         reply_msg['success'] = True
                         reply_msg['message'] = 'Control and Data clients disconnected successfully'
                         self.gui_control_conn.send(reply_msg)
-                        with self.control_msg_from_nc_cond:
-                            self.control_msg_from_nc_cond.notify()
+                        self.control_msg_from_nc_event.set()
                     else:
                         reply_msg = msg
                         reply_msg['success'] = False
                         reply_msg['message'] = 'Unable to disconnect properly or control client disconnect timed out'
                         self.gui_control_conn.send(reply_msg)
-                        with self.control_msg_from_nc_cond:
-                            self.control_msg_from_nc_cond.notify()
+                        self.control_msg_from_nc_event.set()
 
                 else:
                     logging.warning('NetworkController: received an unexpected ACK type %s', ack_wrapper)
@@ -306,5 +301,5 @@ class NetworkController(mp.Process):
             else:
                 while not self.stop_event.is_set():
                     if self.ack_msg_from_cc_event.wait(1.0):
-                        self.ack_msg_from_cc_cond.clear()
+                        self.ack_msg_from_cc_event.clear()
                         break
