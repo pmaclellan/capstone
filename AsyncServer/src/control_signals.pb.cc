@@ -49,21 +49,23 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       "control_signals.proto");
   GOOGLE_CHECK(file != NULL);
   StartRequest_descriptor_ = file->message_type(0);
-  static const int StartRequest_offsets_[3] = {
+  static const int StartRequest_offsets_[4] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, port_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, channels_),
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, rate_),
+    GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, timestamp_),
   };
   StartRequest_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
       StartRequest_descriptor_,
-      StartRequest::internal_default_instance(),
+      StartRequest::default_instance_,
       StartRequest_offsets_,
       -1,
       -1,
       -1,
       sizeof(StartRequest),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, _internal_metadata_));
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, _internal_metadata_),
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StartRequest, _is_default_instance_));
   StopRequest_descriptor_ = file->message_type(1);
   static const int StopRequest_offsets_[2] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StopRequest, port_),
@@ -72,13 +74,14 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
   StopRequest_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
       StopRequest_descriptor_,
-      StopRequest::internal_default_instance(),
+      StopRequest::default_instance_,
       StopRequest_offsets_,
       -1,
       -1,
       -1,
       sizeof(StopRequest),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StopRequest, _internal_metadata_));
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StopRequest, _internal_metadata_),
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(StopRequest, _is_default_instance_));
   SensitivityRequest_descriptor_ = file->message_type(2);
   static const int SensitivityRequest_offsets_[1] = {
     GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, voltage_),
@@ -86,13 +89,14 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
   SensitivityRequest_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
       SensitivityRequest_descriptor_,
-      SensitivityRequest::internal_default_instance(),
+      SensitivityRequest::default_instance_,
       SensitivityRequest_offsets_,
       -1,
       -1,
       -1,
       sizeof(SensitivityRequest),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, _internal_metadata_));
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, _internal_metadata_),
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(SensitivityRequest, _is_default_instance_));
   SensitivityRequest_Voltage_descriptor_ = SensitivityRequest_descriptor_->enum_type(0);
   RequestWrapper_descriptor_ = file->message_type(3);
   static const int RequestWrapper_offsets_[5] = {
@@ -105,7 +109,7 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
   RequestWrapper_reflection_ =
     ::google::protobuf::internal::GeneratedMessageReflection::NewGeneratedMessageReflection(
       RequestWrapper_descriptor_,
-      RequestWrapper::internal_default_instance(),
+      RequestWrapper::default_instance_,
       RequestWrapper_offsets_,
       -1,
       -1,
@@ -113,13 +117,14 @@ void protobuf_AssignDesc_control_5fsignals_2eproto() {
       RequestWrapper_default_oneof_instance_,
       GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, _oneof_case_[0]),
       sizeof(RequestWrapper),
-      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, _internal_metadata_));
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, _internal_metadata_),
+      GOOGLE_PROTOBUF_GENERATED_MESSAGE_FIELD_OFFSET(RequestWrapper, _is_default_instance_));
 }
 
 namespace {
 
 GOOGLE_PROTOBUF_DECLARE_ONCE(protobuf_AssignDescriptors_once_);
-void protobuf_AssignDescriptorsOnce() {
+inline void protobuf_AssignDescriptorsOnce() {
   ::google::protobuf::GoogleOnceInit(&protobuf_AssignDescriptors_once_,
                  &protobuf_AssignDesc_control_5fsignals_2eproto);
 }
@@ -128,73 +133,62 @@ void protobuf_RegisterTypes(const ::std::string&) GOOGLE_ATTRIBUTE_COLD;
 void protobuf_RegisterTypes(const ::std::string&) {
   protobuf_AssignDescriptorsOnce();
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      StartRequest_descriptor_, StartRequest::internal_default_instance());
+      StartRequest_descriptor_, &StartRequest::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      StopRequest_descriptor_, StopRequest::internal_default_instance());
+      StopRequest_descriptor_, &StopRequest::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      SensitivityRequest_descriptor_, SensitivityRequest::internal_default_instance());
+      SensitivityRequest_descriptor_, &SensitivityRequest::default_instance());
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedMessage(
-      RequestWrapper_descriptor_, RequestWrapper::internal_default_instance());
+      RequestWrapper_descriptor_, &RequestWrapper::default_instance());
 }
 
 }  // namespace
 
 void protobuf_ShutdownFile_control_5fsignals_2eproto() {
-  StartRequest_default_instance_.Shutdown();
+  delete StartRequest::default_instance_;
   delete StartRequest_reflection_;
-  StopRequest_default_instance_.Shutdown();
+  delete StopRequest::default_instance_;
   delete StopRequest_reflection_;
-  SensitivityRequest_default_instance_.Shutdown();
+  delete SensitivityRequest::default_instance_;
   delete SensitivityRequest_reflection_;
-  RequestWrapper_default_instance_.Shutdown();
+  delete RequestWrapper::default_instance_;
   delete RequestWrapper_default_oneof_instance_;
   delete RequestWrapper_reflection_;
 }
 
-void protobuf_InitDefaults_control_5fsignals_2eproto_impl() {
+void protobuf_AddDesc_control_5fsignals_2eproto() GOOGLE_ATTRIBUTE_COLD;
+void protobuf_AddDesc_control_5fsignals_2eproto() {
+  static bool already_here = false;
+  if (already_here) return;
+  already_here = true;
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  StartRequest_default_instance_.DefaultConstruct();
-  StopRequest_default_instance_.DefaultConstruct();
-  SensitivityRequest_default_instance_.DefaultConstruct();
-  RequestWrapper_default_instance_.DefaultConstruct();
-  RequestWrapper_default_oneof_instance_ = new RequestWrapperOneofInstance();
-  StartRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
-  StopRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
-  SensitivityRequest_default_instance_.get_mutable()->InitAsDefaultInstance();
-  RequestWrapper_default_instance_.get_mutable()->InitAsDefaultInstance();
-}
-
-GOOGLE_PROTOBUF_DECLARE_ONCE(protobuf_InitDefaults_control_5fsignals_2eproto_once_);
-void protobuf_InitDefaults_control_5fsignals_2eproto() {
-  ::google::protobuf::GoogleOnceInit(&protobuf_InitDefaults_control_5fsignals_2eproto_once_,
-                 &protobuf_InitDefaults_control_5fsignals_2eproto_impl);
-}
-void protobuf_AddDesc_control_5fsignals_2eproto_impl() {
-  GOOGLE_PROTOBUF_VERIFY_VERSION;
-
-  protobuf_InitDefaults_control_5fsignals_2eproto();
   ::google::protobuf::DescriptorPool::InternalAddGeneratedFile(
-    "\n\025control_signals.proto\"<\n\014StartRequest\022"
+    "\n\025control_signals.proto\"O\n\014StartRequest\022"
     "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\022\014\n\004rate\030"
-    "\003 \001(\r\"-\n\013StopRequest\022\014\n\004port\030\001 \001(\r\022\020\n\010ch"
-    "annels\030\002 \001(\r\"j\n\022SensitivityRequest\022,\n\007vo"
-    "ltage\030\001 \001(\0162\033.SensitivityRequest.Voltage"
-    "\"&\n\007Voltage\022\010\n\004FIVE\020\000\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002"
-    "\"\214\001\n\016RequestWrapper\022\020\n\010sequence\030\001 \001(\r\022\036\n"
-    "\005start\030\002 \001(\0132\r.StartRequestH\000\022\034\n\004stop\030\003 "
-    "\001(\0132\014.StopRequestH\000\022#\n\004sens\030\004 \001(\0132\023.Sens"
-    "itivityRequestH\000B\005\n\003msgb\006proto3", 391);
+    "\003 \001(\r\022\021\n\ttimestamp\030\004 \001(\004\"-\n\013StopRequest\022"
+    "\014\n\004port\030\001 \001(\r\022\020\n\010channels\030\002 \001(\r\"j\n\022Sensi"
+    "tivityRequest\022,\n\007voltage\030\001 \001(\0162\033.Sensiti"
+    "vityRequest.Voltage\"&\n\007Voltage\022\010\n\004FIVE\020\000"
+    "\022\007\n\003TEN\020\001\022\010\n\004VREF\020\002\"\214\001\n\016RequestWrapper\022\020"
+    "\n\010sequence\030\001 \001(\r\022\036\n\005start\030\002 \001(\0132\r.StartR"
+    "equestH\000\022\034\n\004stop\030\003 \001(\0132\014.StopRequestH\000\022#"
+    "\n\004sens\030\004 \001(\0132\023.SensitivityRequestH\000B\005\n\003m"
+    "sgb\006proto3", 410);
   ::google::protobuf::MessageFactory::InternalRegisterGeneratedFile(
     "control_signals.proto", &protobuf_RegisterTypes);
+  StartRequest::default_instance_ = new StartRequest();
+  StopRequest::default_instance_ = new StopRequest();
+  SensitivityRequest::default_instance_ = new SensitivityRequest();
+  RequestWrapper::default_instance_ = new RequestWrapper();
+  RequestWrapper_default_oneof_instance_ = new RequestWrapperOneofInstance();
+  StartRequest::default_instance_->InitAsDefaultInstance();
+  StopRequest::default_instance_->InitAsDefaultInstance();
+  SensitivityRequest::default_instance_->InitAsDefaultInstance();
+  RequestWrapper::default_instance_->InitAsDefaultInstance();
   ::google::protobuf::internal::OnShutdown(&protobuf_ShutdownFile_control_5fsignals_2eproto);
 }
 
-GOOGLE_PROTOBUF_DECLARE_ONCE(protobuf_AddDesc_control_5fsignals_2eproto_once_);
-void protobuf_AddDesc_control_5fsignals_2eproto() {
-  ::google::protobuf::GoogleOnceInit(&protobuf_AddDesc_control_5fsignals_2eproto_once_,
-                 &protobuf_AddDesc_control_5fsignals_2eproto_impl);
-}
 // Force AddDescriptors() to be called at static initialization time.
 struct StaticDescriptorInitializer_control_5fsignals_2eproto {
   StaticDescriptorInitializer_control_5fsignals_2eproto() {
@@ -202,46 +196,40 @@ struct StaticDescriptorInitializer_control_5fsignals_2eproto {
   }
 } static_descriptor_initializer_control_5fsignals_2eproto_;
 
-namespace {
-
-static void MergeFromFail(int line) GOOGLE_ATTRIBUTE_COLD GOOGLE_ATTRIBUTE_NORETURN;
-static void MergeFromFail(int line) {
-  ::google::protobuf::internal::MergeFromFail(__FILE__, line);
-}
-
-}  // namespace
-
-
 // ===================================================================
 
 #if !defined(_MSC_VER) || _MSC_VER >= 1900
 const int StartRequest::kPortFieldNumber;
 const int StartRequest::kChannelsFieldNumber;
 const int StartRequest::kRateFieldNumber;
+const int StartRequest::kTimestampFieldNumber;
 #endif  // !defined(_MSC_VER) || _MSC_VER >= 1900
 
 StartRequest::StartRequest()
   : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  if (this != internal_default_instance()) protobuf_InitDefaults_control_5fsignals_2eproto();
   SharedCtor();
   // @@protoc_insertion_point(constructor:StartRequest)
 }
 
 void StartRequest::InitAsDefaultInstance() {
+  _is_default_instance_ = true;
 }
 
 StartRequest::StartRequest(const StartRequest& from)
   : ::google::protobuf::Message(),
     _internal_metadata_(NULL) {
   SharedCtor();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
   // @@protoc_insertion_point(copy_constructor:StartRequest)
 }
 
 void StartRequest::SharedCtor() {
-  ::memset(&port_, 0, reinterpret_cast<char*>(&rate_) -
-    reinterpret_cast<char*>(&port_) + sizeof(rate_));
+    _is_default_instance_ = false;
   _cached_size_ = 0;
+  port_ = 0u;
+  channels_ = 0u;
+  rate_ = 0u;
+  timestamp_ = GOOGLE_ULONGLONG(0);
 }
 
 StartRequest::~StartRequest() {
@@ -250,6 +238,8 @@ StartRequest::~StartRequest() {
 }
 
 void StartRequest::SharedDtor() {
+  if (this != default_instance_) {
+  }
 }
 
 void StartRequest::SetCachedSize(int size) const {
@@ -263,11 +253,11 @@ const ::google::protobuf::Descriptor* StartRequest::descriptor() {
 }
 
 const StartRequest& StartRequest::default_instance() {
-  protobuf_InitDefaults_control_5fsignals_2eproto();
-  return *internal_default_instance();
+  if (default_instance_ == NULL) protobuf_AddDesc_control_5fsignals_2eproto();
+  return *default_instance_;
 }
 
-::google::protobuf::internal::ExplicitlyConstructed<StartRequest> StartRequest_default_instance_;
+StartRequest* StartRequest::default_instance_ = NULL;
 
 StartRequest* StartRequest::New(::google::protobuf::Arena* arena) const {
   StartRequest* n = new StartRequest;
@@ -291,7 +281,7 @@ void StartRequest::Clear() {
 #endif
 
 #define ZR_(first, last) do {\
-  ::memset(&(first), 0,\
+  ::memset(&first, 0,\
            ZR_HELPER_(last) - ZR_HELPER_(first) + sizeof(last));\
 } while (0)
 
@@ -315,10 +305,10 @@ bool StartRequest::MergePartialFromCodedStream(
       // optional uint32 port = 1;
       case 1: {
         if (tag == 8) {
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &port_)));
+
         } else {
           goto handle_unusual;
         }
@@ -330,10 +320,10 @@ bool StartRequest::MergePartialFromCodedStream(
       case 2: {
         if (tag == 16) {
          parse_channels:
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &channels_)));
+
         } else {
           goto handle_unusual;
         }
@@ -345,10 +335,25 @@ bool StartRequest::MergePartialFromCodedStream(
       case 3: {
         if (tag == 24) {
          parse_rate:
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &rate_)));
+
+        } else {
+          goto handle_unusual;
+        }
+        if (input->ExpectTag(32)) goto parse_timestamp;
+        break;
+      }
+
+      // optional uint64 timestamp = 4;
+      case 4: {
+        if (tag == 32) {
+         parse_timestamp:
+          DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
+                   ::google::protobuf::uint64, ::google::protobuf::internal::WireFormatLite::TYPE_UINT64>(
+                 input, &timestamp_)));
+
         } else {
           goto handle_unusual;
         }
@@ -395,12 +400,16 @@ void StartRequest::SerializeWithCachedSizes(
     ::google::protobuf::internal::WireFormatLite::WriteUInt32(3, this->rate(), output);
   }
 
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    ::google::protobuf::internal::WireFormatLite::WriteUInt64(4, this->timestamp(), output);
+  }
+
   // @@protoc_insertion_point(serialize_end:StartRequest)
 }
 
 ::google::protobuf::uint8* StartRequest::InternalSerializeWithCachedSizesToArray(
     bool deterministic, ::google::protobuf::uint8* target) const {
-  (void)deterministic; // Unused
   // @@protoc_insertion_point(serialize_to_array_start:StartRequest)
   // optional uint32 port = 1;
   if (this->port() != 0) {
@@ -417,13 +426,18 @@ void StartRequest::SerializeWithCachedSizes(
     target = ::google::protobuf::internal::WireFormatLite::WriteUInt32ToArray(3, this->rate(), target);
   }
 
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    target = ::google::protobuf::internal::WireFormatLite::WriteUInt64ToArray(4, this->timestamp(), target);
+  }
+
   // @@protoc_insertion_point(serialize_to_array_end:StartRequest)
   return target;
 }
 
-size_t StartRequest::ByteSizeLong() const {
+int StartRequest::ByteSize() const {
 // @@protoc_insertion_point(message_byte_size_start:StartRequest)
-  size_t total_size = 0;
+  int total_size = 0;
 
   // optional uint32 port = 1;
   if (this->port() != 0) {
@@ -446,17 +460,25 @@ size_t StartRequest::ByteSizeLong() const {
         this->rate());
   }
 
-  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
+  // optional uint64 timestamp = 4;
+  if (this->timestamp() != 0) {
+    total_size += 1 +
+      ::google::protobuf::internal::WireFormatLite::UInt64Size(
+        this->timestamp());
+  }
+
   GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = cached_size;
+  _cached_size_ = total_size;
   GOOGLE_SAFE_CONCURRENT_WRITES_END();
   return total_size;
 }
 
 void StartRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:StartRequest)
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const StartRequest* source =
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
+  }
+  const StartRequest* source = 
       ::google::protobuf::internal::DynamicCastToGenerated<const StartRequest>(
           &from);
   if (source == NULL) {
@@ -464,21 +486,15 @@ void StartRequest::MergeFrom(const ::google::protobuf::Message& from) {
     ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:StartRequest)
-    UnsafeMergeFrom(*source);
+    MergeFrom(*source);
   }
 }
 
 void StartRequest::MergeFrom(const StartRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:StartRequest)
-  if (GOOGLE_PREDICT_TRUE(&from != this)) {
-    UnsafeMergeFrom(from);
-  } else {
-    MergeFromFail(__LINE__);
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
   }
-}
-
-void StartRequest::UnsafeMergeFrom(const StartRequest& from) {
-  GOOGLE_DCHECK(&from != this);
   if (from.port() != 0) {
     set_port(from.port());
   }
@@ -487,6 +503,9 @@ void StartRequest::UnsafeMergeFrom(const StartRequest& from) {
   }
   if (from.rate() != 0) {
     set_rate(from.rate());
+  }
+  if (from.timestamp() != 0) {
+    set_timestamp(from.timestamp());
   }
 }
 
@@ -501,7 +520,7 @@ void StartRequest::CopyFrom(const StartRequest& from) {
 // @@protoc_insertion_point(class_specific_copy_from_start:StartRequest)
   if (&from == this) return;
   Clear();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
 }
 
 bool StartRequest::IsInitialized() const {
@@ -517,6 +536,7 @@ void StartRequest::InternalSwap(StartRequest* other) {
   std::swap(port_, other->port_);
   std::swap(channels_, other->channels_);
   std::swap(rate_, other->rate_);
+  std::swap(timestamp_, other->timestamp_);
   _internal_metadata_.Swap(&other->_internal_metadata_);
   std::swap(_cached_size_, other->_cached_size_);
 }
@@ -536,11 +556,11 @@ void StartRequest::InternalSwap(StartRequest* other) {
 void StartRequest::clear_port() {
   port_ = 0u;
 }
-::google::protobuf::uint32 StartRequest::port() const {
+ ::google::protobuf::uint32 StartRequest::port() const {
   // @@protoc_insertion_point(field_get:StartRequest.port)
   return port_;
 }
-void StartRequest::set_port(::google::protobuf::uint32 value) {
+ void StartRequest::set_port(::google::protobuf::uint32 value) {
   
   port_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.port)
@@ -550,11 +570,11 @@ void StartRequest::set_port(::google::protobuf::uint32 value) {
 void StartRequest::clear_channels() {
   channels_ = 0u;
 }
-::google::protobuf::uint32 StartRequest::channels() const {
+ ::google::protobuf::uint32 StartRequest::channels() const {
   // @@protoc_insertion_point(field_get:StartRequest.channels)
   return channels_;
 }
-void StartRequest::set_channels(::google::protobuf::uint32 value) {
+ void StartRequest::set_channels(::google::protobuf::uint32 value) {
   
   channels_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.channels)
@@ -564,19 +584,30 @@ void StartRequest::set_channels(::google::protobuf::uint32 value) {
 void StartRequest::clear_rate() {
   rate_ = 0u;
 }
-::google::protobuf::uint32 StartRequest::rate() const {
+ ::google::protobuf::uint32 StartRequest::rate() const {
   // @@protoc_insertion_point(field_get:StartRequest.rate)
   return rate_;
 }
-void StartRequest::set_rate(::google::protobuf::uint32 value) {
+ void StartRequest::set_rate(::google::protobuf::uint32 value) {
   
   rate_ = value;
   // @@protoc_insertion_point(field_set:StartRequest.rate)
 }
 
-inline const StartRequest* StartRequest::internal_default_instance() {
-  return &StartRequest_default_instance_.get();
+// optional uint64 timestamp = 4;
+void StartRequest::clear_timestamp() {
+  timestamp_ = GOOGLE_ULONGLONG(0);
 }
+ ::google::protobuf::uint64 StartRequest::timestamp() const {
+  // @@protoc_insertion_point(field_get:StartRequest.timestamp)
+  return timestamp_;
+}
+ void StartRequest::set_timestamp(::google::protobuf::uint64 value) {
+  
+  timestamp_ = value;
+  // @@protoc_insertion_point(field_set:StartRequest.timestamp)
+}
+
 #endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
 
 // ===================================================================
@@ -588,26 +619,27 @@ const int StopRequest::kChannelsFieldNumber;
 
 StopRequest::StopRequest()
   : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  if (this != internal_default_instance()) protobuf_InitDefaults_control_5fsignals_2eproto();
   SharedCtor();
   // @@protoc_insertion_point(constructor:StopRequest)
 }
 
 void StopRequest::InitAsDefaultInstance() {
+  _is_default_instance_ = true;
 }
 
 StopRequest::StopRequest(const StopRequest& from)
   : ::google::protobuf::Message(),
     _internal_metadata_(NULL) {
   SharedCtor();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
   // @@protoc_insertion_point(copy_constructor:StopRequest)
 }
 
 void StopRequest::SharedCtor() {
-  ::memset(&port_, 0, reinterpret_cast<char*>(&channels_) -
-    reinterpret_cast<char*>(&port_) + sizeof(channels_));
+    _is_default_instance_ = false;
   _cached_size_ = 0;
+  port_ = 0u;
+  channels_ = 0u;
 }
 
 StopRequest::~StopRequest() {
@@ -616,6 +648,8 @@ StopRequest::~StopRequest() {
 }
 
 void StopRequest::SharedDtor() {
+  if (this != default_instance_) {
+  }
 }
 
 void StopRequest::SetCachedSize(int size) const {
@@ -629,11 +663,11 @@ const ::google::protobuf::Descriptor* StopRequest::descriptor() {
 }
 
 const StopRequest& StopRequest::default_instance() {
-  protobuf_InitDefaults_control_5fsignals_2eproto();
-  return *internal_default_instance();
+  if (default_instance_ == NULL) protobuf_AddDesc_control_5fsignals_2eproto();
+  return *default_instance_;
 }
 
-::google::protobuf::internal::ExplicitlyConstructed<StopRequest> StopRequest_default_instance_;
+StopRequest* StopRequest::default_instance_ = NULL;
 
 StopRequest* StopRequest::New(::google::protobuf::Arena* arena) const {
   StopRequest* n = new StopRequest;
@@ -657,7 +691,7 @@ void StopRequest::Clear() {
 #endif
 
 #define ZR_(first, last) do {\
-  ::memset(&(first), 0,\
+  ::memset(&first, 0,\
            ZR_HELPER_(last) - ZR_HELPER_(first) + sizeof(last));\
 } while (0)
 
@@ -681,10 +715,10 @@ bool StopRequest::MergePartialFromCodedStream(
       // optional uint32 port = 1;
       case 1: {
         if (tag == 8) {
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &port_)));
+
         } else {
           goto handle_unusual;
         }
@@ -696,10 +730,10 @@ bool StopRequest::MergePartialFromCodedStream(
       case 2: {
         if (tag == 16) {
          parse_channels:
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &channels_)));
+
         } else {
           goto handle_unusual;
         }
@@ -746,7 +780,6 @@ void StopRequest::SerializeWithCachedSizes(
 
 ::google::protobuf::uint8* StopRequest::InternalSerializeWithCachedSizesToArray(
     bool deterministic, ::google::protobuf::uint8* target) const {
-  (void)deterministic; // Unused
   // @@protoc_insertion_point(serialize_to_array_start:StopRequest)
   // optional uint32 port = 1;
   if (this->port() != 0) {
@@ -762,9 +795,9 @@ void StopRequest::SerializeWithCachedSizes(
   return target;
 }
 
-size_t StopRequest::ByteSizeLong() const {
+int StopRequest::ByteSize() const {
 // @@protoc_insertion_point(message_byte_size_start:StopRequest)
-  size_t total_size = 0;
+  int total_size = 0;
 
   // optional uint32 port = 1;
   if (this->port() != 0) {
@@ -780,17 +813,18 @@ size_t StopRequest::ByteSizeLong() const {
         this->channels());
   }
 
-  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = cached_size;
+  _cached_size_ = total_size;
   GOOGLE_SAFE_CONCURRENT_WRITES_END();
   return total_size;
 }
 
 void StopRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:StopRequest)
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const StopRequest* source =
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
+  }
+  const StopRequest* source = 
       ::google::protobuf::internal::DynamicCastToGenerated<const StopRequest>(
           &from);
   if (source == NULL) {
@@ -798,21 +832,15 @@ void StopRequest::MergeFrom(const ::google::protobuf::Message& from) {
     ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:StopRequest)
-    UnsafeMergeFrom(*source);
+    MergeFrom(*source);
   }
 }
 
 void StopRequest::MergeFrom(const StopRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:StopRequest)
-  if (GOOGLE_PREDICT_TRUE(&from != this)) {
-    UnsafeMergeFrom(from);
-  } else {
-    MergeFromFail(__LINE__);
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
   }
-}
-
-void StopRequest::UnsafeMergeFrom(const StopRequest& from) {
-  GOOGLE_DCHECK(&from != this);
   if (from.port() != 0) {
     set_port(from.port());
   }
@@ -832,7 +860,7 @@ void StopRequest::CopyFrom(const StopRequest& from) {
 // @@protoc_insertion_point(class_specific_copy_from_start:StopRequest)
   if (&from == this) return;
   Clear();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
 }
 
 bool StopRequest::IsInitialized() const {
@@ -866,11 +894,11 @@ void StopRequest::InternalSwap(StopRequest* other) {
 void StopRequest::clear_port() {
   port_ = 0u;
 }
-::google::protobuf::uint32 StopRequest::port() const {
+ ::google::protobuf::uint32 StopRequest::port() const {
   // @@protoc_insertion_point(field_get:StopRequest.port)
   return port_;
 }
-void StopRequest::set_port(::google::protobuf::uint32 value) {
+ void StopRequest::set_port(::google::protobuf::uint32 value) {
   
   port_ = value;
   // @@protoc_insertion_point(field_set:StopRequest.port)
@@ -880,19 +908,16 @@ void StopRequest::set_port(::google::protobuf::uint32 value) {
 void StopRequest::clear_channels() {
   channels_ = 0u;
 }
-::google::protobuf::uint32 StopRequest::channels() const {
+ ::google::protobuf::uint32 StopRequest::channels() const {
   // @@protoc_insertion_point(field_get:StopRequest.channels)
   return channels_;
 }
-void StopRequest::set_channels(::google::protobuf::uint32 value) {
+ void StopRequest::set_channels(::google::protobuf::uint32 value) {
   
   channels_ = value;
   // @@protoc_insertion_point(field_set:StopRequest.channels)
 }
 
-inline const StopRequest* StopRequest::internal_default_instance() {
-  return &StopRequest_default_instance_.get();
-}
 #endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
 
 // ===================================================================
@@ -902,7 +927,7 @@ const ::google::protobuf::EnumDescriptor* SensitivityRequest_Voltage_descriptor(
   return SensitivityRequest_Voltage_descriptor_;
 }
 bool SensitivityRequest_Voltage_IsValid(int value) {
-  switch (value) {
+  switch(value) {
     case 0:
     case 1:
     case 2:
@@ -926,25 +951,26 @@ const int SensitivityRequest::kVoltageFieldNumber;
 
 SensitivityRequest::SensitivityRequest()
   : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  if (this != internal_default_instance()) protobuf_InitDefaults_control_5fsignals_2eproto();
   SharedCtor();
   // @@protoc_insertion_point(constructor:SensitivityRequest)
 }
 
 void SensitivityRequest::InitAsDefaultInstance() {
+  _is_default_instance_ = true;
 }
 
 SensitivityRequest::SensitivityRequest(const SensitivityRequest& from)
   : ::google::protobuf::Message(),
     _internal_metadata_(NULL) {
   SharedCtor();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
   // @@protoc_insertion_point(copy_constructor:SensitivityRequest)
 }
 
 void SensitivityRequest::SharedCtor() {
-  voltage_ = 0;
+    _is_default_instance_ = false;
   _cached_size_ = 0;
+  voltage_ = 0;
 }
 
 SensitivityRequest::~SensitivityRequest() {
@@ -953,6 +979,8 @@ SensitivityRequest::~SensitivityRequest() {
 }
 
 void SensitivityRequest::SharedDtor() {
+  if (this != default_instance_) {
+  }
 }
 
 void SensitivityRequest::SetCachedSize(int size) const {
@@ -966,11 +994,11 @@ const ::google::protobuf::Descriptor* SensitivityRequest::descriptor() {
 }
 
 const SensitivityRequest& SensitivityRequest::default_instance() {
-  protobuf_InitDefaults_control_5fsignals_2eproto();
-  return *internal_default_instance();
+  if (default_instance_ == NULL) protobuf_AddDesc_control_5fsignals_2eproto();
+  return *default_instance_;
 }
 
-::google::protobuf::internal::ExplicitlyConstructed<SensitivityRequest> SensitivityRequest_default_instance_;
+SensitivityRequest* SensitivityRequest::default_instance_ = NULL;
 
 SensitivityRequest* SensitivityRequest::New(::google::protobuf::Arena* arena) const {
   SensitivityRequest* n = new SensitivityRequest;
@@ -1045,7 +1073,6 @@ void SensitivityRequest::SerializeWithCachedSizes(
 
 ::google::protobuf::uint8* SensitivityRequest::InternalSerializeWithCachedSizesToArray(
     bool deterministic, ::google::protobuf::uint8* target) const {
-  (void)deterministic; // Unused
   // @@protoc_insertion_point(serialize_to_array_start:SensitivityRequest)
   // optional .SensitivityRequest.Voltage voltage = 1;
   if (this->voltage() != 0) {
@@ -1057,9 +1084,9 @@ void SensitivityRequest::SerializeWithCachedSizes(
   return target;
 }
 
-size_t SensitivityRequest::ByteSizeLong() const {
+int SensitivityRequest::ByteSize() const {
 // @@protoc_insertion_point(message_byte_size_start:SensitivityRequest)
-  size_t total_size = 0;
+  int total_size = 0;
 
   // optional .SensitivityRequest.Voltage voltage = 1;
   if (this->voltage() != 0) {
@@ -1067,17 +1094,18 @@ size_t SensitivityRequest::ByteSizeLong() const {
       ::google::protobuf::internal::WireFormatLite::EnumSize(this->voltage());
   }
 
-  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = cached_size;
+  _cached_size_ = total_size;
   GOOGLE_SAFE_CONCURRENT_WRITES_END();
   return total_size;
 }
 
 void SensitivityRequest::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:SensitivityRequest)
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const SensitivityRequest* source =
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
+  }
+  const SensitivityRequest* source = 
       ::google::protobuf::internal::DynamicCastToGenerated<const SensitivityRequest>(
           &from);
   if (source == NULL) {
@@ -1085,21 +1113,15 @@ void SensitivityRequest::MergeFrom(const ::google::protobuf::Message& from) {
     ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:SensitivityRequest)
-    UnsafeMergeFrom(*source);
+    MergeFrom(*source);
   }
 }
 
 void SensitivityRequest::MergeFrom(const SensitivityRequest& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:SensitivityRequest)
-  if (GOOGLE_PREDICT_TRUE(&from != this)) {
-    UnsafeMergeFrom(from);
-  } else {
-    MergeFromFail(__LINE__);
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
   }
-}
-
-void SensitivityRequest::UnsafeMergeFrom(const SensitivityRequest& from) {
-  GOOGLE_DCHECK(&from != this);
   if (from.voltage() != 0) {
     set_voltage(from.voltage());
   }
@@ -1116,7 +1138,7 @@ void SensitivityRequest::CopyFrom(const SensitivityRequest& from) {
 // @@protoc_insertion_point(class_specific_copy_from_start:SensitivityRequest)
   if (&from == this) return;
   Clear();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
 }
 
 bool SensitivityRequest::IsInitialized() const {
@@ -1149,19 +1171,16 @@ void SensitivityRequest::InternalSwap(SensitivityRequest* other) {
 void SensitivityRequest::clear_voltage() {
   voltage_ = 0;
 }
-::SensitivityRequest_Voltage SensitivityRequest::voltage() const {
+ ::SensitivityRequest_Voltage SensitivityRequest::voltage() const {
   // @@protoc_insertion_point(field_get:SensitivityRequest.voltage)
   return static_cast< ::SensitivityRequest_Voltage >(voltage_);
 }
-void SensitivityRequest::set_voltage(::SensitivityRequest_Voltage value) {
+ void SensitivityRequest::set_voltage(::SensitivityRequest_Voltage value) {
   
   voltage_ = value;
   // @@protoc_insertion_point(field_set:SensitivityRequest.voltage)
 }
 
-inline const SensitivityRequest* SensitivityRequest::internal_default_instance() {
-  return &SensitivityRequest_default_instance_.get();
-}
 #endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
 
 // ===================================================================
@@ -1175,32 +1194,30 @@ const int RequestWrapper::kSensFieldNumber;
 
 RequestWrapper::RequestWrapper()
   : ::google::protobuf::Message(), _internal_metadata_(NULL) {
-  if (this != internal_default_instance()) protobuf_InitDefaults_control_5fsignals_2eproto();
   SharedCtor();
   // @@protoc_insertion_point(constructor:RequestWrapper)
 }
 
 void RequestWrapper::InitAsDefaultInstance() {
-  RequestWrapper_default_oneof_instance_->start_ = const_cast< ::StartRequest*>(
-      ::StartRequest::internal_default_instance());
-  RequestWrapper_default_oneof_instance_->stop_ = const_cast< ::StopRequest*>(
-      ::StopRequest::internal_default_instance());
-  RequestWrapper_default_oneof_instance_->sens_ = const_cast< ::SensitivityRequest*>(
-      ::SensitivityRequest::internal_default_instance());
+  _is_default_instance_ = true;
+  RequestWrapper_default_oneof_instance_->start_ = const_cast< ::StartRequest*>(&::StartRequest::default_instance());
+  RequestWrapper_default_oneof_instance_->stop_ = const_cast< ::StopRequest*>(&::StopRequest::default_instance());
+  RequestWrapper_default_oneof_instance_->sens_ = const_cast< ::SensitivityRequest*>(&::SensitivityRequest::default_instance());
 }
 
 RequestWrapper::RequestWrapper(const RequestWrapper& from)
   : ::google::protobuf::Message(),
     _internal_metadata_(NULL) {
   SharedCtor();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
   // @@protoc_insertion_point(copy_constructor:RequestWrapper)
 }
 
 void RequestWrapper::SharedCtor() {
+    _is_default_instance_ = false;
+  _cached_size_ = 0;
   sequence_ = 0u;
   clear_has_msg();
-  _cached_size_ = 0;
 }
 
 RequestWrapper::~RequestWrapper() {
@@ -1211,6 +1228,8 @@ RequestWrapper::~RequestWrapper() {
 void RequestWrapper::SharedDtor() {
   if (has_msg()) {
     clear_msg();
+  }
+  if (this != default_instance_) {
   }
 }
 
@@ -1225,11 +1244,11 @@ const ::google::protobuf::Descriptor* RequestWrapper::descriptor() {
 }
 
 const RequestWrapper& RequestWrapper::default_instance() {
-  protobuf_InitDefaults_control_5fsignals_2eproto();
-  return *internal_default_instance();
+  if (default_instance_ == NULL) protobuf_AddDesc_control_5fsignals_2eproto();
+  return *default_instance_;
 }
 
-::google::protobuf::internal::ExplicitlyConstructed<RequestWrapper> RequestWrapper_default_instance_;
+RequestWrapper* RequestWrapper::default_instance_ = NULL;
 
 RequestWrapper* RequestWrapper::New(::google::protobuf::Arena* arena) const {
   RequestWrapper* n = new RequestWrapper;
@@ -1241,7 +1260,7 @@ RequestWrapper* RequestWrapper::New(::google::protobuf::Arena* arena) const {
 
 void RequestWrapper::clear_msg() {
 // @@protoc_insertion_point(one_of_clear_start:RequestWrapper)
-  switch (msg_case()) {
+  switch(msg_case()) {
     case kStart: {
       delete msg_.start_;
       break;
@@ -1281,10 +1300,10 @@ bool RequestWrapper::MergePartialFromCodedStream(
       // optional uint32 sequence = 1;
       case 1: {
         if (tag == 8) {
-
           DO_((::google::protobuf::internal::WireFormatLite::ReadPrimitive<
                    ::google::protobuf::uint32, ::google::protobuf::internal::WireFormatLite::TYPE_UINT32>(
                  input, &sequence_)));
+
         } else {
           goto handle_unusual;
         }
@@ -1301,13 +1320,14 @@ bool RequestWrapper::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-        goto after_sens;
+        if (input->ExpectTag(26)) goto parse_stop;
         break;
       }
 
       // optional .StopRequest stop = 3;
       case 3: {
         if (tag == 26) {
+         parse_stop:
           DO_(::google::protobuf::internal::WireFormatLite::ReadMessageNoVirtual(
                input, mutable_stop()));
         } else {
@@ -1326,7 +1346,6 @@ bool RequestWrapper::MergePartialFromCodedStream(
         } else {
           goto handle_unusual;
         }
-       after_sens:
         if (input->ExpectAtEnd()) goto success;
         break;
       }
@@ -1383,7 +1402,6 @@ void RequestWrapper::SerializeWithCachedSizes(
 
 ::google::protobuf::uint8* RequestWrapper::InternalSerializeWithCachedSizesToArray(
     bool deterministic, ::google::protobuf::uint8* target) const {
-  (void)deterministic; // Unused
   // @@protoc_insertion_point(serialize_to_array_start:RequestWrapper)
   // optional uint32 sequence = 1;
   if (this->sequence() != 0) {
@@ -1415,9 +1433,9 @@ void RequestWrapper::SerializeWithCachedSizes(
   return target;
 }
 
-size_t RequestWrapper::ByteSizeLong() const {
+int RequestWrapper::ByteSize() const {
 // @@protoc_insertion_point(message_byte_size_start:RequestWrapper)
-  size_t total_size = 0;
+  int total_size = 0;
 
   // optional uint32 sequence = 1;
   if (this->sequence() != 0) {
@@ -1452,17 +1470,18 @@ size_t RequestWrapper::ByteSizeLong() const {
       break;
     }
   }
-  int cached_size = ::google::protobuf::internal::ToCachedSize(total_size);
   GOOGLE_SAFE_CONCURRENT_WRITES_BEGIN();
-  _cached_size_ = cached_size;
+  _cached_size_ = total_size;
   GOOGLE_SAFE_CONCURRENT_WRITES_END();
   return total_size;
 }
 
 void RequestWrapper::MergeFrom(const ::google::protobuf::Message& from) {
 // @@protoc_insertion_point(generalized_merge_from_start:RequestWrapper)
-  if (GOOGLE_PREDICT_FALSE(&from == this)) MergeFromFail(__LINE__);
-  const RequestWrapper* source =
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
+  }
+  const RequestWrapper* source = 
       ::google::protobuf::internal::DynamicCastToGenerated<const RequestWrapper>(
           &from);
   if (source == NULL) {
@@ -1470,21 +1489,15 @@ void RequestWrapper::MergeFrom(const ::google::protobuf::Message& from) {
     ::google::protobuf::internal::ReflectionOps::Merge(from, this);
   } else {
   // @@protoc_insertion_point(generalized_merge_from_cast_success:RequestWrapper)
-    UnsafeMergeFrom(*source);
+    MergeFrom(*source);
   }
 }
 
 void RequestWrapper::MergeFrom(const RequestWrapper& from) {
 // @@protoc_insertion_point(class_specific_merge_from_start:RequestWrapper)
-  if (GOOGLE_PREDICT_TRUE(&from != this)) {
-    UnsafeMergeFrom(from);
-  } else {
-    MergeFromFail(__LINE__);
+  if (GOOGLE_PREDICT_FALSE(&from == this)) {
+    ::google::protobuf::internal::MergeFromFail(__FILE__, __LINE__);
   }
-}
-
-void RequestWrapper::UnsafeMergeFrom(const RequestWrapper& from) {
-  GOOGLE_DCHECK(&from != this);
   switch (from.msg_case()) {
     case kStart: {
       mutable_start()->::StartRequest::MergeFrom(from.start());
@@ -1518,7 +1531,7 @@ void RequestWrapper::CopyFrom(const RequestWrapper& from) {
 // @@protoc_insertion_point(class_specific_copy_from_start:RequestWrapper)
   if (&from == this) return;
   Clear();
-  UnsafeMergeFrom(from);
+  MergeFrom(from);
 }
 
 bool RequestWrapper::IsInitialized() const {
@@ -1553,11 +1566,11 @@ void RequestWrapper::InternalSwap(RequestWrapper* other) {
 void RequestWrapper::clear_sequence() {
   sequence_ = 0u;
 }
-::google::protobuf::uint32 RequestWrapper::sequence() const {
+ ::google::protobuf::uint32 RequestWrapper::sequence() const {
   // @@protoc_insertion_point(field_get:RequestWrapper.sequence)
   return sequence_;
 }
-void RequestWrapper::set_sequence(::google::protobuf::uint32 value) {
+ void RequestWrapper::set_sequence(::google::protobuf::uint32 value) {
   
   sequence_ = value;
   // @@protoc_insertion_point(field_set:RequestWrapper.sequence)
@@ -1715,9 +1728,6 @@ void RequestWrapper::clear_has_msg() {
 }
 RequestWrapper::MsgCase RequestWrapper::msg_case() const {
   return RequestWrapper::MsgCase(_oneof_case_[0]);
-}
-inline const RequestWrapper* RequestWrapper::internal_default_instance() {
-  return &RequestWrapper_default_instance_.get();
 }
 #endif  // PROTOBUF_INLINE_NOT_IN_HEADERS
 
