@@ -31,19 +31,21 @@ class MainWindow(QtGui.QMainWindow):
         # mp.Connection for sending directory to store binary files in to StorageController
         self.filepath_sender = filepath_sender
   
-        # mp.Condition variable to wait on for new set of readings to be available to be plotted
+        # mp.Event variable to wait on for new set of readings to be available to be plotted
         self.readings_to_be_plotted_event = readings_to_be_plotted_event
   
-        # mp.Condition variable to notify StorageController that it should update its filepath
+        # mp.Event variable to notify StorageController that it should update its filepath
         self.filepath_available_event = filepath_available_event
   
-        # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
+        # mp.Event variable for wait/notify on duplex control message connection GUI <--> NC
         self.control_msg_from_gui_event = control_msg_from_gui_event
         self.control_msg_from_nc_event = control_msg_from_nc_event
+
+        self.stop_event = mp.Event()
   
         # UI event handlers will place messages into this queue to be sent by control_send_thread
         self.send_queue = Queue.Queue()
-        self.msg_to_be_sent_cond = threading.Condition()
+        self.msg_to_be_sent_event = threading.Event()
 
         self.numpy_data_queue = Queue.Queue()
   
@@ -120,8 +122,8 @@ class MainWindow(QtGui.QMainWindow):
 
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
-        with self.msg_to_be_sent_cond:
-            self.msg_to_be_sent_cond.notify()
+        with self.msg_to_be_sent_event:
+            self.msg_to_be_sent_event.notify()
 
 
         # TODO: show a 'connecting...' spinner
@@ -147,8 +149,8 @@ class MainWindow(QtGui.QMainWindow):
 
         # put disconnect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(disconnect_msg)
-        with self.msg_to_be_sent_cond:
-            self.msg_to_be_sent_cond.notify()
+        with self.msg_to_be_sent_event:
+            self.msg_to_be_sent_event.notify()
 
         # TODO: show a 'disconnecting...' spinner
 
@@ -226,7 +228,7 @@ class MainWindow(QtGui.QMainWindow):
     # control_send_thread target
     def send_control_messages(self, *args):
         send_queue = args[0]
-        while True:
+        while not self.stop_event.is_set():
             if not send_queue.empty():
                 msg = send_queue.get()
                 self.control_conn.send(msg)
@@ -234,8 +236,10 @@ class MainWindow(QtGui.QMainWindow):
                 with self.sent_dict_lock:
                     self.sent_dict[msg['seq']] = msg
             else:
-                with self.msg_to_be_sent_cond:
-                    self.msg_to_be_sent_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.msg_to_be_sent_event.wait(1.0):
+                        self.msg_to_be_sent_event.clear()
+                        break
 
     def recv_control_messages(self):
         while True:
