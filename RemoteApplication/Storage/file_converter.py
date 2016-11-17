@@ -18,6 +18,7 @@ def get_channels_from_bitmask(bitmask):
   return active_channels
 
 def convert_file(file, source_dir, output_dir):
+	print 'starting conversion of %s' % file
 	fbin = open(source_dir + file, 'rb')
 	outfile = file.split('.')[0] + '.h5'
 	fout = h5py.File(output_dir + outfile, 'a')
@@ -49,8 +50,17 @@ def convert_file(file, source_dir, output_dir):
 									(raw_reading[5] << 24) + (raw_reading[4] << 16) + \
 									(raw_reading[3] << 8) + raw_reading[2]
 
+			abs_ts = timestamp + start_time
+
+			# split the 64-bit timestamp into 16-bit chunks for more 
+			# efficient storage (ts0 is MSB, ts3 is LSB)
+			ts0 = (abs_ts & (0xff << 48)) >> 48
+			ts1 = (abs_ts & (0xff << 32)) >> 32
+			ts2 = (abs_ts & (0xff << 16)) >> 16
+			ts3 = abs_ts & 0xff
+
 			# start building the list that will be converted to a numpy array later
-			intermediate = [('_TS', start_time + timestamp)]
+			intermediate = [('TS0', ts0), ('TS1', ts1), ('TS2', ts2), ('TS3', ts3)]
 
 			# trim DEAD and timestamp from the reading
 			raw_reading = raw_reading[8:]
@@ -62,7 +72,7 @@ def convert_file(file, source_dir, output_dir):
 
 			# create numpy array from list for passing to storage
 			reading = np.array(intermediate, 
-												dtype=[('channel', 'S3'), ('value', 'uint64')])
+												dtype=[('channel', 'S3'), ('value', 'uint16')])
 			dataset.append(reading)
 	if len(dataset) > 0:
 		# write the leftover readings to the file before closing
@@ -70,6 +80,7 @@ def convert_file(file, source_dir, output_dir):
 
 	fout.close()
 	fbin.close()
+	print 'conversion done, %s produced' % outfile
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
@@ -87,5 +98,4 @@ if __name__ == "__main__":
 
 	files = [f for f in listdir(source_dir) if f.endswith('.daqula')]
 	for file in files:
-		print 'file = %s' % file
 		success = convert_file(file, source_dir, output_dir)

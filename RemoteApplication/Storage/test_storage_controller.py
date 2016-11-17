@@ -14,8 +14,8 @@ storage_receiver, storage_sender = mp.Pipe(duplex=False)
 filepath_receiver, filepath_sender = mp.Pipe(duplex=False)
 file_header_receiver, file_header_sender = mp.Pipe(duplex=False)
 reading_to_be_stored_event = mp.Event()
-filepath_available_cond = mp.Condition()
-file_header_available_cond = mp.Condition()
+filepath_available_event = mp.Event()
+file_header_available_event = mp.Event()
 
 reading = bytearray([0xad, 0xde, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa, 0xaa,
                      0xff, 0xee, 0xff, 0xee, 0xff, 0xee, 0xff, 0xee,
@@ -33,21 +33,19 @@ start_time = 1478300446552583
 
 class TestFunctionality:
     def test_binary_writer(self):
-        input_length = 1000
+        input_length = 10000000
         sc = StorageController(storage_receiver, filepath_receiver, file_header_receiver,
-                               reading_to_be_stored_event, filepath_available_cond, file_header_available_cond)
+                               reading_to_be_stored_event, filepath_available_event, file_header_available_event)
 
         sc.start()
 
         sc.expected_records = input_length
 
-        filepath_sender.send('/Users/pmaclellan/capstone/RemoteApplication/Storage/testdir/')
-        with filepath_available_cond:
-            filepath_available_cond.notify()
+        filepath_sender.send('/Users/pmaclellan/capstone/RemoteApplication/Storage/testdir')
+        filepath_available_event.set()
 
         file_header_sender.send((start_time, active_channels, chunk_size))
-        with file_header_available_cond:
-            file_header_available_cond.notify()
+        file_header_available_event.set()
 
         time.sleep(1)
 
@@ -57,7 +55,7 @@ class TestFunctionality:
 
         start = time.time()
 
-        for i in range(input_length):
+        for i in range(input_length / chunk_size):
             storage_sender.send(chunk)
             reading_to_be_stored_event.set()
 

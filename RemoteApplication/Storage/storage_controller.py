@@ -97,7 +97,7 @@ class StorageController(mp.Process):
                         break
 
     def write_binary_files(self):
-        filesize_threshold = 1000
+        filesize_threshold = 368000000
         records_written = 0
         f = None
 
@@ -123,6 +123,7 @@ class StorageController(mp.Process):
                     reading = self.storage_receiver.recv()
                     f.write(reading + '\n')
                     records_written += 1
+                    bytes_written += len(reading)
                     # for testing purposes only
                     if records_written >= self.expected_records:
                         with self.file_writer_done_cond:
