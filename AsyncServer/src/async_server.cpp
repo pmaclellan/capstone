@@ -334,7 +334,7 @@ void *data_task(void *dummy)
 
     // Open the DMA
     printf("Trying to open the dma driver\n");
-    int axiDmaFd = open("/dev/axidma_rx", O_RDONLY);
+    int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
     while(1)
     {
         // Read some data from the DMA
