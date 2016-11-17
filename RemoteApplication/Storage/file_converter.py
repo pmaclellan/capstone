@@ -84,7 +84,7 @@ def convert_file(file, source_dir, output_dir):
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
-		print 'usage: file_converter <source_dir> [output_dir=source_dir]'
+		print 'usage: file_converter.py <source_dir> [output_dir=source_dir]'
 		sys.exit()
 	source_dir = sys.argv[1]
 	if not source_dir.endswith('/'):
