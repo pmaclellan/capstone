@@ -12,7 +12,7 @@ import logging
 
 class NetworkController(mp.Process):
     def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
-                 file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_cond,
+                 file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_event,
                  control_msg_from_gui_event, control_msg_from_nc_cond):
         super(NetworkController, self).__init__()
 
@@ -32,7 +32,7 @@ class NetworkController(mp.Process):
         # IPC condition variables
         self.file_header_available_event = file_header_available_event
         self.reading_to_be_stored_event = reading_to_be_stored_event
-        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
+        self.readings_to_be_plotted_event = readings_to_be_plotted_event
 
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
         self.control_msg_from_gui_event = control_msg_from_gui_event
@@ -78,7 +78,7 @@ class NetworkController(mp.Process):
         self.data_client = DataClient(gui_data_sender=self.gui_data_sender,
                                       storage_sender=self.storage_sender,
                                       reading_to_be_stored_event=self.reading_to_be_stored_event,
-                                      readings_to_be_plotted_cond=self.readings_to_be_plotted_cond)
+                                      readings_to_be_plotted_event=self.readings_to_be_plotted_event)
 
         # receives request protobuf messages triggered by GUI events
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)

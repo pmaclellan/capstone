@@ -18,7 +18,7 @@ import logging
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, control_conn, data_receiver, filepath_sender,
-                 readings_to_be_plotted_cond, filepath_available_event,
+                 readings_to_be_plotted_event, filepath_available_event,
                  control_msg_from_gui_event, control_msg_from_nc_cond):
         super(MainWindow, self).__init__()
  
@@ -32,7 +32,7 @@ class MainWindow(QtGui.QMainWindow):
         self.filepath_sender = filepath_sender
   
         # mp.Condition variable to wait on for new set of readings to be available to be plotted
-        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
+        self.readings_to_be_plotted_event = readings_to_be_plotted_event
   
         # mp.Condition variable to notify StorageController that it should update its filepath
         self.filepath_available_event = filepath_available_event
@@ -44,6 +44,8 @@ class MainWindow(QtGui.QMainWindow):
         # UI event handlers will place messages into this queue to be sent by control_send_thread
         self.send_queue = Queue.Queue()
         self.msg_to_be_sent_cond = threading.Condition()
+
+        self.numpy_data_queue = Queue.Queue()
   
         self.sequence = 0
         self.sequence_lock = threading.Lock()
@@ -75,7 +77,7 @@ class MainWindow(QtGui.QMainWindow):
         self.handle_load_config()
         
         self.checkBoxes = CheckBoxes(self)
-        self.daq = DaqPlot(self)
+        self.daq = DaqPlot(self, self.numpy_data_queue)
         self.ui.show()
         
         #Connect buttons to functions
@@ -307,14 +309,32 @@ class MainWindow(QtGui.QMainWindow):
 
     def recv_data_stream(self, *args):
         stop_event = args[0]
+        # reading_block will be a list of bytearrays each containing one full sample
+        reading_block = []
+        num_channels = self.checkBoxes.numActive()
+        bytes_per_500 = (num_channels + 4) * 2 * 500
         while not stop_event.is_set():
             if self.data_receiver.poll():
                 raw_reading = self.data_receiver.recv()
-                # convert to numpy array or whatever
-                # send to plot
+                reading_block.append(raw_reading)
+                if len(reading_block) >= bytes_per_500:
+                    numpy_array_list = self.create_numpy_arrays(reading_block, num_channels)
+                    self.numpy_data_queue.put(numpy_array_list)
+                    reading_block = []
             else:
-                with self.readings_to_be_plotted_cond:
-                    self.readings_to_be_plotted_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.readings_to_be_plotted_event.wait(1.0):
+                        self.readings_to_be_plotted_event.clear()
+                        break
+
+    def create_numpy_arrays(self, reading_block, num_channels):
+        numpy_arrays = []
+        # offset by 8 bytes to skip the DEAD, TS header
+        for i in range(8, 2 * num_channels + 8, 2):
+            # create a list of len(reading_block) 16-bit readings for each active channel
+            channel = [(x[i+1] << 8) + x[i] for x in reading_block]
+            numpy_arrays.append(np.array(channel))
+        return numpy_arrays
 
     # def showResultMessage(self, message):
     #     msg = QMessageBox()
@@ -350,9 +370,10 @@ class MainWindow(QtGui.QMainWindow):
 #                 self.cancel = True
         
 class DaqPlot:
-    def __init__(self, parent):
+    def __init__(self, parent, numpy_data_queue):
         self.parent = parent
         self.parent.ui.daqPlot.setLabel('bottom', 'Index', units='B')
+        self.numpy_data_queue = numpy_data_queue
         
     def initPlot(self, numPlots):
         self.nPlots = numPlots
@@ -387,24 +408,26 @@ class DaqPlot:
 #        self.parent.ui
         
     def update(self):
-        self.count += 1
-        #print "---------", count
-        for i in range(self.nPlots):
-            #self.curves[i].setData(self.data[(self.ptr+i)%self.data.shape[0]])
-            self.curves[i].setData(0.25*np.sin(180*np.pi*self.x)*self.fps)
-
-        #print "   setData done."
-        self.ptr += self.nPlots
-        now = time()
-        self.x = np.linspace(self.lastTime, now, 500)
-        dt = now - self.lastTime
-        self.lastTime = now
-        if self.fps is None:
-            self.fps = 1.0/dt
-        else:
-            s = np.clip(dt*3., 0, 1)
-            self.fps = self.fps * (1-s) + (1.0/dt) * s
-        self.parent.ui.daqPlot.setTitle('%0.2f fps' % self.fps)
+        if not self.numpy_data_queue.empty():
+            numpy_data = self.numpy_data_queue.get()
+            self.count += 1
+            #print "---------", count
+            for i in range(self.nPlots):
+                #self.curves[i].setData(self.data[(self.ptr+i)%self.data.shape[0]])
+                # self.curves[i].setData(0.25*np.sin(180*np.pi*self.x)*self.fps)
+                self.curves[i].setData(numpy_data[i])
+            #print "   setData done."
+            self.ptr += self.nPlots
+            now = time()
+            self.x = np.linspace(self.lastTime, now, 500)
+            dt = now - self.lastTime
+            self.lastTime = now
+            if self.fps is None:
+                self.fps = 1.0/dt
+            else:
+                s = np.clip(dt*3., 0, 1)
+                self.fps = self.fps * (1-s) + (1.0/dt) * s
+            self.parent.ui.daqPlot.setTitle('%0.2f fps' % self.fps)
 
 class CheckBoxes:
     def __init__(self, parent):

@@ -53,7 +53,7 @@ class DaqulaApplication(mp.Process):
         self.file_header_receiver, self.file_header_sender = mp.Pipe(duplex=False)
 
         # Create Condition variables
-        self.readings_to_be_plotted_cond = mp.Condition()
+        self.readings_to_be_plotted_event = mp.Event()
         self.filepath_available_event = mp.Event()
         self.file_header_available_event = mp.Event()
         self.control_msg_from_gui_event = mp.Event()
@@ -65,7 +65,7 @@ class DaqulaApplication(mp.Process):
         self.gui = MainWindow(control_conn=self.gui_control_conn,
                               data_receiver=self.gui_data_receiver,
                               filepath_sender=self.filepath_sender,
-                              readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
+                              readings_to_be_plotted_event=self.readings_to_be_plotted_event,
                               filepath_available_event=self.filepath_available_event,
                               control_msg_from_gui_event=self.control_msg_from_gui_event,
                               control_msg_from_nc_cond=self.control_msg_from_nc_cond)
@@ -76,7 +76,7 @@ class DaqulaApplication(mp.Process):
                                     file_header_sender=self.file_header_sender,
                                     file_header_available_event=self.file_header_available_event,
                                     reading_to_be_stored_event=self.reading_to_be_stored_event,
-                                    readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
+                                    readings_to_be_plotted_event=self.readings_to_be_plotted_event,
                                     control_msg_from_gui_event=self.control_msg_from_gui_event,
                                     control_msg_from_nc_cond=self.control_msg_from_nc_cond)
 

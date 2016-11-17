@@ -8,7 +8,7 @@ import logging
 
 
 class DataClient():
-    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_event, readings_to_be_plotted_cond):
+    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_event, readings_to_be_plotted_event):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -26,7 +26,7 @@ class DataClient():
 
         self.reading_to_be_stored_event = reading_to_be_stored_event
 
-        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
+        self.readings_to_be_plotted_event = readings_to_be_plotted_event
 
         # pipe for passing full readings (bytearray) from socket listener to sync verification filter
         self.fast_path_receiver, self.fast_path_sender = mp.Pipe(duplex=False)
@@ -281,8 +281,7 @@ class DataClient():
                     self.storage_sender.send(reading)
                     # notify the gui and storage controller that they have work to do
                     self.reading_to_be_stored_event.set()
-                    with self.readings_to_be_plotted_cond:
-                        self.readings_to_be_plotted_cond.notify()
+                    self.readings_to_be_plotted_event.set()
                     # for testing purposes only
                     readings_verified += 1
                 else:
@@ -347,6 +346,6 @@ class DataClient():
     #             #TODO: uncomment these when the other sides are ready to receive
     #
     #             # self.gui_data_sender.send(reading)
-    #             # self.readings_to_be_plotted_cond.notify()
+    #             # self.readings_to_be_plotted_event.notify()
     #             # self.storage_sender.send(reading)
     #             # self.reading_to_be_stored_cond.notify()
