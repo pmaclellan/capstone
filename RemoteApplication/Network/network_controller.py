@@ -12,8 +12,8 @@ import logging
 
 class NetworkController(mp.Process):
     def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
-                 file_header_available_cond, reading_to_be_stored_event, readings_to_be_plotted_cond,
-                 control_msg_from_gui_cond, control_msg_from_nc_cond):
+                 file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_cond,
+                 control_msg_from_gui_event, control_msg_from_nc_cond):
         super(NetworkController, self).__init__()
 
         # mp.Connection for sending readings from DataClient to StorageController
@@ -30,16 +30,19 @@ class NetworkController(mp.Process):
         self.file_header_sender = file_header_sender
 
         # IPC condition variables
-        self.file_header_available_cond = file_header_available_cond
+        self.file_header_available_event = file_header_available_event
         self.reading_to_be_stored_event = reading_to_be_stored_event
         self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
 
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
-        self.control_msg_from_gui_cond = control_msg_from_gui_cond
+        self.control_msg_from_gui_event = control_msg_from_gui_event
         self.control_msg_from_nc_cond = control_msg_from_nc_cond
 
-        # threading.Condition variable for ControlClient to notify NC that an ACK is available
-        self.ack_msg_from_cc_cond = threading.Condition()
+        # used to stop listener threads and terminate the process gracefully
+        self.stop_event = mp.Event()
+
+        # mp.Event variable for ControlClient to notify NC that an ACK is available
+        self.ack_msg_from_cc_event = mp.Event()
 
         # threading.Event variable to wait on for async client to connect
         self.control_client_connected_event = threading.Event()
@@ -68,7 +71,7 @@ class NetworkController(mp.Process):
         self.sent_dict = {}
 
         self.control_client = ControlClient(control_protobuf_conn=self.cc_control_conn,
-                                            ack_msg_from_cc_cond=self.ack_msg_from_cc_cond,
+                                            ack_msg_from_cc_event=self.ack_msg_from_cc_event,
                                             connected_event=self.control_client_connected_event,
                                             disconnected_event=self.control_client_disconnected_event)
 
@@ -90,12 +93,16 @@ class NetworkController(mp.Process):
         # 1.0 sets the polling frequency (default=30.0)
         # use_poll=True is a workaround to avoid "bad file descriptor" upon closing
         # for python 2.7.X according to GitHub Issue...but it still gives the error
-        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0, use_poll=True))
+        self.loop_thread = threading.Thread(target=self.asyncore_loop)
+        self.loop_thread.daemon = True
 
     def run(self):
         self.gui_receiver_thread.start()
         self.ack_listener_thread.start()
         self.gui_receiver_thread.join()
+        logging.debug('NetworkController: gui_receiver thread joined')
+        self.ack_listener_thread.join()
+        logging.debug('NetworkController: ack_listener thread joined')
         logging.info('NetworkController finished running')
 
     def connect_control_port(self, host, port):
@@ -135,8 +142,13 @@ class NetworkController(mp.Process):
     #     self.data_client.update_active_channels(self.active_channels)
     #     print(self.channel_mask)
 
+    def asyncore_loop(self):
+        while not self.stop_event.is_set():
+            asyncore.loop(timeout=1.0, count=1)
+        logging.debug('NetworkController: asyncore loop thread finished')
+
     def recv_from_gui(self):
-        while True:
+        while not self.stop_event.is_set():
             if self.gui_control_conn.poll():
                 msg = self.gui_control_conn.recv()
                 logging.info('NetworkController: received control message: \n%s', msg)
@@ -208,11 +220,13 @@ class NetworkController(mp.Process):
                                              % msg['seq'])
 
             else:
-                with self.control_msg_from_gui_cond:
-                    self.control_msg_from_gui_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.control_msg_from_gui_event.wait(1.0):
+                        self.control_msg_from_gui_event.clear()
+                        break
 
     def read_ack_messages(self):
-        while True:
+        while not self.stop_event.is_set():
             if self.nc_control_conn.poll():
                 ack = self.nc_control_conn.recv()
                 ack_wrapper = control_signals_pb2.RequestWrapper()
@@ -237,8 +251,7 @@ class NetworkController(mp.Process):
                     # send header info to SC and notify
                     header = (start_request.timestamp, start_request.channels, self.data_client.chunk_size)
                     self.file_header_sender.send(header)
-                    with self.file_header_available_cond:
-                        self.file_header_available_cond.notify()
+                    self.file_header_available_event.set()
 
                     data_connect_success = self.connect_data_port(self.host, start_request.port)
 
@@ -291,5 +304,7 @@ class NetworkController(mp.Process):
                     logging.warning('NetworkController: received an unexpected ACK type %s', ack_wrapper)
 
             else:
-                with self.ack_msg_from_cc_cond:
-                    self.ack_msg_from_cc_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.ack_msg_from_cc_event.wait(1.0):
+                        self.ack_msg_from_cc_cond.clear()
+                        break

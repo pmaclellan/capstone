@@ -7,6 +7,7 @@ from PyQt4 import QtGui
 import sys
 import logging
 import getopt
+import time
 
 class DaqulaApplication(mp.Process):
     def __init__(self, argv):
@@ -53,9 +54,9 @@ class DaqulaApplication(mp.Process):
 
         # Create Condition variables
         self.readings_to_be_plotted_cond = mp.Condition()
-        self.filepath_available_cond = mp.Condition()
-        self.file_header_available_cond = mp.Condition()
-        self.control_msg_from_gui_cond = mp.Condition()
+        self.filepath_available_event = mp.Event()
+        self.file_header_available_event = mp.Event()
+        self.control_msg_from_gui_event = mp.Event()
         self.control_msg_from_nc_cond = mp.Condition()
 
         # Create Event variables for things that need timeout functionality
@@ -65,33 +66,41 @@ class DaqulaApplication(mp.Process):
                               data_receiver=self.gui_data_receiver,
                               filepath_sender=self.filepath_sender,
                               readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
-                              filepath_available_cond=self.filepath_available_cond,
-                              control_msg_from_gui_cond=self.control_msg_from_gui_cond,
+                              filepath_available_event=self.filepath_available_event,
+                              control_msg_from_gui_event=self.control_msg_from_gui_event,
                               control_msg_from_nc_cond=self.control_msg_from_nc_cond)
 
         self.nc = NetworkController(storage_sender=self.storage_sender,
                                     gui_control_conn=self.nc_control_conn,
                                     gui_data_sender=self.gui_data_sender,
                                     file_header_sender=self.file_header_sender,
-                                    file_header_available_cond=self.file_header_available_cond,
+                                    file_header_available_event=self.file_header_available_event,
                                     reading_to_be_stored_event=self.reading_to_be_stored_event,
                                     readings_to_be_plotted_cond=self.readings_to_be_plotted_cond,
-                                    control_msg_from_gui_cond=self.control_msg_from_gui_cond,
+                                    control_msg_from_gui_event=self.control_msg_from_gui_event,
                                     control_msg_from_nc_cond=self.control_msg_from_nc_cond)
 
         self.sc = StorageController(storage_receiver=self.storage_receiver,
                                     filepath_receiver=self.filepath_receiver,
                                     file_header_receiver=self.file_header_receiver,
                                     reading_to_be_stored_event=self.reading_to_be_stored_event,
-                                    filepath_available_cond=self.filepath_available_cond,
-                                    file_header_available_cond=self.file_header_available_cond)
+                                    filepath_available_event=self.filepath_available_event,
+                                    file_header_available_event=self.file_header_available_event)
 
         self.nc.start()
         logging.info('NetworkController started')
         self.sc.start()
         logging.info('StorageController started')
 
-        sys.exit(self.gui_app.exec_())
+        self.gui_app.exec_()
+        self.nc.stop_event.set()
+        self.sc.stop_event.set()
+        self.nc.join()
+        logging.debug('Main: NetworkController joined')
+        self.sc.join()
+        logging.debug('Main: StorageController joined')
+
+        sys.exit()
 
 if __name__ == "__main__":
     app = DaqulaApplication(sys.argv)

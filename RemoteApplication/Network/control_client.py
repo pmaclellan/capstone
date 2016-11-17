@@ -8,7 +8,7 @@ import sys
 import logging
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event, disconnected_event):
+    def __init__(self, control_protobuf_conn, ack_msg_from_cc_event, connected_event, disconnected_event):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
@@ -19,7 +19,7 @@ class ControlClient(asyncore.dispatcher):
         self.control_protobuf_conn = control_protobuf_conn
 
         # threading.Condition variable to notify NetworkController when an ACK has been sent back up
-        self.ack_msg_from_cc_cond = ack_msg_from_cc_cond
+        self.ack_msg_from_cc_event = ack_msg_from_cc_event
 
         # threading.Event variable for notifying NetworkController that we have connected to server (async)
         self.connected_event = connected_event
@@ -40,9 +40,9 @@ class ControlClient(asyncore.dispatcher):
         self.connected = True
 
     def close_control_port(self):
-        logging.debug('ControlClient: close_control_port()')
+        logging.debug('ControlClient: close_control_port() entered')
         self.connected = False
-        self.close()
+        self.handle_close()
 
     def handle_connect(self):
         logging.debug('ControlClient: handle_connect() entered')
@@ -77,8 +77,7 @@ class ControlClient(asyncore.dispatcher):
             serialized_acked_request = self.sent_dict.pop(sequence)
             logging.debug('ControlClient: ACKed request popped %s', serialized_acked_request)
             self.control_protobuf_conn.send(serialized_acked_request)
-            with self.ack_msg_from_cc_cond:
-                self.ack_msg_from_cc_cond.notify()
+            self.ack_msg_from_cc_event.set()
 
     def readable(self):
         return True

@@ -8,7 +8,7 @@ import logging
 
 class StorageController(mp.Process):
     def __init__(self, storage_receiver, filepath_receiver, file_header_receiver,
-                 reading_to_be_stored_event, filepath_available_cond, file_header_available_cond):
+                 reading_to_be_stored_event, filepath_available_event, file_header_available_event):
         super(StorageController, self).__init__()
 
         # mp.Connection for receiving raw ADC data readings (bytearray from NC.DC)
@@ -24,10 +24,10 @@ class StorageController(mp.Process):
         self.reading_to_be_stored_event = reading_to_be_stored_event
 
         # mp.Condition variable to wait on for new directory to write files to to be available
-        self.filepath_available_cond = filepath_available_cond
+        self.filepath_available_event = filepath_available_event
 
         # mp.Condition variable to wait on for file header updates from NC
-        self.file_header_available_cond = file_header_available_cond
+        self.file_header_available_event = file_header_available_event
 
         # Pipe for passing data internally
         self.from_reader, self.to_writer = mp.Pipe(duplex=False)
@@ -36,9 +36,11 @@ class StorageController(mp.Process):
         # self.reader_thread = threading.Thread(target=self.grabbuffer)
         self.writer_thread = threading.Thread(target=self.write_binary_files)
         self.filepath_listener_thread = threading.Thread(target=self.listen_for_filepath_update)
+        self.filepath_listener_thread.daemon = True
         self.file_header_listener_thread = threading.Thread(target=self.listen_for_file_header_update)
+        self.file_header_listener_thread.daemon = True
 
-        self.stop_event = threading.Event()
+        self.stop_event = mp.Event()
 
         # start_time will hold the Unix time to add to each reading's timestamp offset
         # will be set upon receiving a start message from NC upon successful NC.CC connection
@@ -65,9 +67,6 @@ class StorageController(mp.Process):
         self.writer_thread.join()
         logging.info('StorageController process finished, terminating')
 
-    def stop_storage_controller(self):
-        self.stop_event.set()
-
     def listen_for_filepath_update(self):
         while not self.stop_event.is_set():
             if self.filepath_receiver.poll():
@@ -79,8 +78,10 @@ class StorageController(mp.Process):
                 logging.debug('StorageController: updated filepath to %s', self.filepath)
                 # TODO: input validation
             else:
-                with self.filepath_available_cond:
-                    self.filepath_available_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.filepath_available_event.wait(1.0):
+                        self.filepath_available_event.clear()
+                        break
 
     def listen_for_file_header_update(self):
         while not self.stop_event.is_set():
@@ -90,18 +91,24 @@ class StorageController(mp.Process):
                               'start_time=%d, channel_bitmask=%d, chunk_size=%d',
                               self.start_time, self.channel_bitmask, self.chunk_size)
             else:
-                with self.file_header_available_cond:
-                    self.file_header_available_cond.wait()
+                while not self.stop_event.is_set():
+                    if self.file_header_available_event.wait(1.0):
+                        self.file_header_available_event.clear()
+                        break
 
     def write_binary_files(self):
         filesize_threshold = 1000
         records_written = 0
+        f = None
 
         while not self.stop_event.is_set():
             # wait to have something to write before we open a new file
-            print self.reading_to_be_stored_event.is_set()
-            self.reading_to_be_stored_event.wait()
-            self.reading_to_be_stored_event.clear()
+            while not self.stop_event.is_set():
+                if self.reading_to_be_stored_event.wait(1.0):
+                    self.reading_to_be_stored_event.clear()
+                    break
+            if self.stop_event.is_set():
+                break
             bytes_written = 0
             filename = time.strftime('%Y%m%d%H%M%S') + '.daqula'
             file_to_open = os.path.join(self.filepath, filename)
@@ -123,12 +130,13 @@ class StorageController(mp.Process):
                 else:
                     timed_out = not self.reading_to_be_stored_event.wait(3.0)
                     if timed_out:
+                        logging.debug('StorageController: writer thread timed out, closing file')
                         break
                     else:
                         self.reading_to_be_stored_event.clear()
                         continue
             f.close()
-        if f and not f.closed:
+        if f is not None and not f.closed:
             logging.debug('StorageController: binary writer thread terminating, closing open file')
             f.close()
 

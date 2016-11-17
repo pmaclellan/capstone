@@ -18,8 +18,8 @@ import logging
 
 class MainWindow(QtGui.QMainWindow):
     def __init__(self, control_conn, data_receiver, filepath_sender,
-                 readings_to_be_plotted_cond, filepath_available_cond,
-                 control_msg_from_gui_cond, control_msg_from_nc_cond):
+                 readings_to_be_plotted_cond, filepath_available_event,
+                 control_msg_from_gui_event, control_msg_from_nc_cond):
         super(MainWindow, self).__init__()
  
         # bidirectional mp.Connection for sending control protobuf messages and receiving ACKs
@@ -35,10 +35,10 @@ class MainWindow(QtGui.QMainWindow):
         self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
   
         # mp.Condition variable to notify StorageController that it should update its filepath
-        self.filepath_available_cond = filepath_available_cond
+        self.filepath_available_event = filepath_available_event
   
         # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
-        self.control_msg_from_gui_cond = control_msg_from_gui_cond
+        self.control_msg_from_gui_event = control_msg_from_gui_event
         self.control_msg_from_nc_cond = control_msg_from_nc_cond
   
         # UI event handlers will place messages into this queue to be sent by control_send_thread
@@ -103,8 +103,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # TODO: input validation
         self.filepath_sender.send(self.ui.fileEdit.text())
-        with self.filepath_available_cond:
-            self.filepath_available_cond.notify()
+        self.filepath_available_event.set()
 
         # construct connect control message
         connect_msg = {}
@@ -229,8 +228,7 @@ class MainWindow(QtGui.QMainWindow):
             if not send_queue.empty():
                 msg = send_queue.get()
                 self.control_conn.send(msg)
-                with self.control_msg_from_gui_cond:
-                    self.control_msg_from_gui_cond.notify()
+                self.control_msg_from_gui_event.set()
                 with self.sent_dict_lock:
                     self.sent_dict[msg['seq']] = msg
             else:

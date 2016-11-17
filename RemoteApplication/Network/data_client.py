@@ -39,7 +39,7 @@ class DataClient():
         self.sync_filter_done_cond = threading.Condition()
         self.parser_done_cond = threading.Condition()
         self.reading_available_to_parse_cond = threading.Condition()
-        self.frame_to_be_verified_cond = threading.Condition()
+        self.frame_to_be_verified_event = threading.Event()
 
         self.recv_stop_event = threading.Event()
 
@@ -161,13 +161,14 @@ class DataClient():
                         self.fast_path_sender.send(reading_buffer)
                         carryover_buffer = bytearray(0)
                         # notify sync verification thread that it has work to do
-                        with self.frame_to_be_verified_cond:
-                            self.frame_to_be_verified_cond.notify()
+                        self.frame_to_be_verified_event.set()
 
             else:
                 logging.debug('DataClient: out of sync, attempting to re-establish syncronization')
                 with self.synchronized_lock:
                     while not self.synchronized:
+                        if stop_event.is_set():
+                            break
                         with self.expected_bytes_sent_lock:
                             if bytes_received >= self.expected_bytes_sent:
                                 self.receiver_done_event.set()
@@ -289,9 +290,10 @@ class DataClient():
                         self.synchronized = False
             else:
                 # nothing to read yet
-                with self.frame_to_be_verified_cond:
-                    self.frame_to_be_verified_cond.wait()
-                continue
+                while not stop_event.is_set():
+                    if self.frame_to_be_verified_event.wait(0.1):
+                        self.frame_to_be_verified_event.clear()
+                        break
         logging.debug('DataClient: Sync verification thread terminating, %d readings verified', readings_verified)
 
     # Parser is in charge of transforming the list output from the Sync and Recovery
