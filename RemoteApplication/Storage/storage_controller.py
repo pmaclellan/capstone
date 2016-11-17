@@ -4,6 +4,7 @@ import numpy as np
 import multiprocessing as mp
 import time
 import os.path
+import logging
 
 class StorageController(mp.Process):
     def __init__(self, storage_receiver, filepath_receiver, file_header_receiver,
@@ -58,18 +59,11 @@ class StorageController(mp.Process):
         self.file_writer_done_cond = threading.Condition()
 
     def run(self):
-        # self.reader_thread.start()
         self.writer_thread.start()
         self.filepath_listener_thread.start()
         self.file_header_listener_thread.start()
         self.writer_thread.join()
-
-    # TODO: call upon successful DataClient connection
-    # def start_storage_controller(self, start_time):
-    #     self.start_time = start_time
-    #     self.reader_thread.start()
-    #     self.writer_thread.start()
-    #     self.filepath_listener_thread.start()
+        logging.info('StorageController process finished, terminating')
 
     def stop_storage_controller(self):
         self.stop_event.set()
@@ -82,7 +76,7 @@ class StorageController(mp.Process):
                     if not os.path.exists(self.filepath):
                         print '%s not found, creating...' % self.filepath
                         os.makedirs(self.filepath)
-                print 'StorageController: updated filepath to %s' % self.filepath
+                logging.debug('StorageController: updated filepath to %s', self.filepath)
                 # TODO: input validation
             else:
                 with self.filepath_available_cond:
@@ -92,6 +86,9 @@ class StorageController(mp.Process):
         while not self.stop_event.is_set():
             if self.file_header_receiver.poll():
                 self.start_time, self.channel_bitmask, self.chunk_size = self.file_header_receiver.recv()
+                logging.debug('StorageController: received header info, \n'
+                              'start_time=%d, channel_bitmask=%d, chunk_size=%d',
+                              self.start_time, self.channel_bitmask, self.chunk_size)
             else:
                 with self.file_header_available_cond:
                     self.file_header_available_cond.wait()
@@ -107,9 +104,8 @@ class StorageController(mp.Process):
             self.reading_to_be_stored_event.clear()
             bytes_written = 0
             filename = time.strftime('%Y%m%d%H%M%S') + '.daqula'
-            print '\nself.filepath = %s\n' % self.filepath
-            file_to_open = self.filepath + filename
-            print '\nfilename = %s\n' % file_to_open
+            file_to_open = os.path.join(self.filepath, filename)
+            logging.debug('StorageController: opening new binary file \n%s', file_to_open)
             f = open(file_to_open, 'wb')
             # print 'StorageController: opened a new file: %s' % filename
             f.write(str(self.start_time) + '\n')
@@ -131,82 +127,82 @@ class StorageController(mp.Process):
                     else:
                         self.reading_to_be_stored_event.clear()
                         continue
-            # print 'StorageController: filesize exceeds limit or we timed out, closing and opening another'
             f.close()
         if f and not f.closed:
+            logging.debug('StorageController: binary writer thread terminating, closing open file')
             f.close()
 
 
-    def writeHDF5files(self):
-        timeout_threshold = 100000
-        filesize_threshold = 512000
-        chunk_size = 200
-        records_written = 0
-        write_buffer = []
-        storage_type = np.dtype([('channel', 'S3'), ('value', 'uint64')])
+    # def writeHDF5files(self):
+    #     timeout_threshold = 100000
+    #     filesize_threshold = 512000
+    #     chunk_size = 200
+    #     records_written = 0
+    #     write_buffer = []
+    #     storage_type = np.dtype([('channel', 'S3'), ('value', 'uint64')])
+    #
+    #     while not self.stop_event.is_set():
+    #         with self.file_writer_done_cond:
+    #             if records_written >= self.expected_records:
+    #                 self.file_writer_done_cond.notify()
+    #
+    #         if self.from_reader.poll():
+    #             filename = time.strftime('%Y%m%d-%H:%M:%S')+'.h5'
+    #             f = h5py.File(filename, 'a')
+    #             # print 'new file created: %s' % filename
+    #             timeout_counter = 0
+    #             i = 0
+    #
+    #             while timeout_counter < timeout_threshold:
+    #                 with self.file_writer_done_cond:
+    #                     if records_written >= self.expected_records:
+    #                         self.file_writer_done_cond.notify()
+    #
+    #                 if self.from_reader.poll():
+    #                     timeout_counter = 0
+    #                     reading = self.from_reader.recv()
+    #                     # print 'SC recv\'d a reading'
+    #                     write_buffer.append(reading.astype(storage_type))
+    #                     if len(write_buffer) >= chunk_size:
+    #                         f.create_dataset(str(i), data=write_buffer)
+    #                         # print 'wrote dataset %d' % i
+    #                         records_written += chunk_size
+    #                         write_buffer = []
+    #                         i += 1
+    #                     if os.path.getsize(filename) > filesize_threshold:
+    #                         # print 'file size %d exceeds limit, closing and starting new file' \
+    #                         #       % os.path.getsize(filename)
+    #                         f.close()
+    #                         break
+    #                 else:
+    #                     timeout_counter += 1
+    #             if timeout_counter >= timeout_threshold:
+    #                 if len(write_buffer) > 0:
+    #                     num_records = len(write_buffer)
+    #                     # print 'buffer length to flush: %d' % len(write_buffer)
+    #                     # print 'i = %d' % i
+    #                     #write the partial buffer to file before closing
+    #                     f.create_dataset(str(i), data=write_buffer)
+    #                     records_written += num_records
+    #                 f.close()
+    #             # else continue while loop and create a new file
+    #     if f is not None:
+    #         # write remaining buffer to file and close before terminating thread
+    #         if len(write_buffer) > 0:
+    #             print 'buffer length to flush: %d' % len(write_buffer)
+    #             print 'i = %d' % i
+    #             # write the partial buffer to file before closing
+    #             f.create_dataset(str(i), data=write_buffer)
+    #         f.close()
 
-        while not self.stop_event.is_set():
-            with self.file_writer_done_cond:
-                if records_written >= self.expected_records:
-                    self.file_writer_done_cond.notify()
+    # def process_reading(self, reading):
+    #     # reading[0] += self.start_time
+    #     self.to_writer.send(reading)
 
-            if self.from_reader.poll():
-                filename = time.strftime('%Y%m%d-%H:%M:%S')+'.h5'
-                f = h5py.File(filename, 'a')
-                # print 'new file created: %s' % filename
-                timeout_counter = 0
-                i = 0
-
-                while timeout_counter < timeout_threshold:
-                    with self.file_writer_done_cond:
-                        if records_written >= self.expected_records:
-                            self.file_writer_done_cond.notify()
-
-                    if self.from_reader.poll():
-                        timeout_counter = 0
-                        reading = self.from_reader.recv()
-                        # print 'SC recv\'d a reading'
-                        write_buffer.append(reading.astype(storage_type))
-                        if len(write_buffer) >= chunk_size:
-                            f.create_dataset(str(i), data=write_buffer)
-                            # print 'wrote dataset %d' % i
-                            records_written += chunk_size
-                            write_buffer = []
-                            i += 1
-                        if os.path.getsize(filename) > filesize_threshold:
-                            # print 'file size %d exceeds limit, closing and starting new file' \
-                            #       % os.path.getsize(filename)
-                            f.close()
-                            break
-                    else:
-                        timeout_counter += 1
-                if timeout_counter >= timeout_threshold:
-                    if len(write_buffer) > 0:
-                        num_records = len(write_buffer)
-                        # print 'buffer length to flush: %d' % len(write_buffer)
-                        # print 'i = %d' % i
-                        #write the partial buffer to file before closing
-                        f.create_dataset(str(i), data=write_buffer)
-                        records_written += num_records
-                    f.close()
-                # else continue while loop and create a new file
-        if f is not None:
-            # write remaining buffer to file and close before terminating thread
-            if len(write_buffer) > 0:
-                print 'buffer length to flush: %d' % len(write_buffer)
-                print 'i = %d' % i
-                # write the partial buffer to file before closing
-                f.create_dataset(str(i), data=write_buffer)
-            f.close()
-
-    def process_reading(self, reading):
-        # reading[0] += self.start_time
-        self.to_writer.send(reading)
-
-    def grabbuffer(self):
-        while not self.stop_event.is_set():
-            if self.storage_receiver.poll():
-                reading = self.storage_receiver.recv()
-                self.process_reading(reading)
-            else:
-                self.reading_to_be_stored_event.wait()
+    # def grabbuffer(self):
+    #     while not self.stop_event.is_set():
+    #         if self.storage_receiver.poll():
+    #             reading = self.storage_receiver.recv()
+    #             self.process_reading(reading)
+    #         else:
+    #             self.reading_to_be_stored_event.wait()

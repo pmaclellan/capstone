@@ -13,6 +13,7 @@ import multiprocessing as mp
 import threading
 import Queue
 import inspect
+import logging
 
 
 class MainWindow(QtGui.QMainWindow):
@@ -99,11 +100,6 @@ class MainWindow(QtGui.QMainWindow):
         
         self.daq.initPlot(numPlots)
         self.checkBoxes.lockBoxes()
-        
-        #send to Pete
-        print self.checkBoxes.getActiveChannels()
-        print self.ui.fileEdit.text()
-        print self.ui.sampleRateEdit.text()
 
         # TODO: input validation
         self.filepath_sender.send(self.ui.fileEdit.text())
@@ -125,7 +121,7 @@ class MainWindow(QtGui.QMainWindow):
         self.send_queue.put(connect_msg)
         with self.msg_to_be_sent_cond:
             self.msg_to_be_sent_cond.notify()
-        print "Connect Flag!"
+
 
         # TODO: show a 'connecting...' spinner
 
@@ -140,8 +136,7 @@ class MainWindow(QtGui.QMainWindow):
     def handle_disconnect(self):
         self.ui.connectButton.setText('Connect')
         self.daq.stopPlot()
-        
-        #send to Pete
+
         # construct disconnect control message
         disconnect_msg = {}
         with self.sequence_lock:
@@ -153,7 +148,6 @@ class MainWindow(QtGui.QMainWindow):
         self.send_queue.put(disconnect_msg)
         with self.msg_to_be_sent_cond:
             self.msg_to_be_sent_cond.notify()
-        print "Disconnect Flag!"
 
         # TODO: show a 'disconnecting...' spinner
 
@@ -250,7 +244,7 @@ class MainWindow(QtGui.QMainWindow):
                 with self.sent_dict_lock:
                     if response['seq'] in self.sent_dict.keys():
                         self.sent_dict.pop(response['seq'])
-                        print 'GUI: received reply from NC, %s' % response
+                        logging.debug('GUI: received reply from NC, %s', response)
                         # TODO: dear god please put this stuff into helper functions
                         if response['type'] == 'CONNECT':
                             if response['success'] == True:
@@ -300,7 +294,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.connectButton.clicked.disconnect()
                                 self.ui.connectButton.clicked.connect(self.handle_disconnect)
                                 self.ui.connectButton.setEnabled(True)
-                                self.ui.fileEdit.setEnabled(False)
+                                self.ui.fileEdit.setEnabled(True)
                                 self.ui.selectDirButton.setEnabled(False)
                                 self.ui.sampleRateEdit.setEnabled(False)
                                 self.ui.loadConfig.setEnabled(False)
@@ -318,7 +312,6 @@ class MainWindow(QtGui.QMainWindow):
         while not stop_event.is_set():
             if self.data_receiver.poll():
                 raw_reading = self.data_receiver.recv()
-                print 'GUI: received a reading of length %d bytes' % len(raw_reading)
                 # convert to numpy array or whatever
                 # send to plot
             else:
@@ -519,10 +512,3 @@ class CheckBoxes:
         if self.cb00.checkState() == 2:
             #self.parent.daq.nPlots = self.parent.daq.nPlots + 1
             self.parent.ui.daqPlot.addItem(self.parent.daq.curves[2])
-
-
-# if __name__ == "__main__":
-#     ## Always start by initializing Qt (only once per application)
-#     app = QtGui.QApplication(sys.argv)
-#     window = MainWindow()
-#     sys.exit(app.exec_())

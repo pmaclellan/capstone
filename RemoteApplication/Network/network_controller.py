@@ -1,11 +1,13 @@
+from control_client import ControlClient
+from data_client import DataClient
+import control_signals_pb2
+
 import multiprocessing as mp
 import numpy as np
 import threading
 import asyncore
 import bisect
-import control_signals_pb2
-from control_client import ControlClient
-from data_client import DataClient
+import logging
 
 
 class NetworkController(mp.Process):
@@ -94,26 +96,30 @@ class NetworkController(mp.Process):
         self.gui_receiver_thread.start()
         self.ack_listener_thread.start()
         self.gui_receiver_thread.join()
+        logging.info('NetworkController finished running')
 
     def connect_control_port(self, host, port):
-        print 'connect_control_port() entered'
+        logging.debug('NetworkController: connect_control_port() entered')
         if self.control_client is not None and not self.control_client.connected:
             success = self.control_client.connect_control_port(host, port)
             self.loop_thread.start()
             return success
 
     def connect_data_port(self, host, port):
-        print 'connect_data_port() entered'
+        logging.debug('NetworkController: connect_data_port() entered')
         if self.data_client is not None and not self.data_client.connected:
             return self.data_client.connect_data_port(host, port)
 
     def close_control_port(self):
+        logging.debug('NetworkController: attempting to close control port')
         if self.data_client.connected:
             self.data_client.close_data_port()
         self.control_client.close_control_port()
         self.loop_thread.join()
+        logging.info('NetworkController: control and data ports closed')
 
     def close_data_port(self):
+        logging.debug('NetworkController: attempting to close data port')
         return self.data_client.close_data_port()
 
     # def processChannelUpdate(self, sender, checked):
@@ -133,7 +139,7 @@ class NetworkController(mp.Process):
         while True:
             if self.gui_control_conn.poll():
                 msg = self.gui_control_conn.recv()
-                print 'NetworkController: received control message: %s' % msg
+                logging.info('NetworkController: received control message: \n%s', msg)
 
                 if msg['type'] == 'CONNECT':
                     # TODO: input validation
@@ -156,7 +162,7 @@ class NetworkController(mp.Process):
                     # serialize wrapper for sending over Pipe
                     serialized = requestWrapper.SerializeToString()
                     self.nc_control_conn.send(serialized)
-                    print 'NetworkController: sent serialized requestWrapper to CC'
+                    logging.debug('NetworkController: sent serialized requestWrapper to CC')
                     # ControlClient uses asyncore so we don't need to notify it
 
                     if msg['seq'] not in self.sent_dict.keys():
@@ -192,7 +198,7 @@ class NetworkController(mp.Process):
                     # serialize wrapper for sending over Pipe
                     serialized = requestWrapper.SerializeToString()
                     self.nc_control_conn.send(serialized)
-                    print 'NetworkController: sent serialized requestWrapper to CC'
+                    logging.debug('NetworkController: sent serialized requestWrapper to CC')
                     # ControlClient uses asyncore so we don't need to notify it
 
                     if msg['seq'] not in self.sent_dict.keys():
@@ -211,7 +217,7 @@ class NetworkController(mp.Process):
                 ack = self.nc_control_conn.recv()
                 ack_wrapper = control_signals_pb2.RequestWrapper()
                 ack_wrapper.ParseFromString(ack)
-                print 'NetworkController: received ACK message %s' % ack_wrapper
+                logging.info('NetworkController: received ACK message %s', ack_wrapper)
 
                 if ack_wrapper.sequence in self.sent_dict.keys():
                     msg = self.sent_dict.pop(ack_wrapper.sequence)
@@ -220,13 +226,12 @@ class NetworkController(mp.Process):
                     raise RuntimeWarning('NetworkController: received unexpected ACK from ControlClient')
 
                 if ack_wrapper.HasField('start') and not self.data_client.connected:
-                    print 'NetworkController: received start ACK, starting data client'
+                    logging.info('NetworkController: received start ACK, starting data client')
                     start_request = control_signals_pb2.StartRequest()
-                    print 'Attempting to MergeFrom start request: %s' % ack_wrapper.start
                     start_request.MergeFrom(ack_wrapper.start)
                     # make sure that we're getting the channels we expect
-                    # TODO: handle a mismatch more gracefully
-                    assert start_request.channels == msg['channels']
+                    if start_request.channels != msg['channels']:
+                        raise RuntimeWarning('NetworkController: active channels in ACK differ from requested')
                     self.data_client.update_active_channels(start_request.channels)
 
                     # send header info to SC and notify
@@ -237,7 +242,7 @@ class NetworkController(mp.Process):
 
                     data_connect_success = self.connect_data_port(self.host, start_request.port)
 
-                    print 'NetworkController: data_connect_success = %s' % data_connect_success
+                    logging.debug('NetworkController: data_connect_success = %s', data_connect_success)
 
                     if data_connect_success:
                         # construct a success reply message
@@ -283,7 +288,7 @@ class NetworkController(mp.Process):
                             self.control_msg_from_nc_cond.notify()
 
                 else:
-                    print 'NetworkController: received an unexpected ACK type (not Stop or StartRequest'
+                    logging.warning('NetworkController: received an unexpected ACK type %s', ack_wrapper)
 
             else:
                 with self.ack_msg_from_cc_cond:

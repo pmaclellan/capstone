@@ -5,11 +5,36 @@ from Storage.storage_controller import StorageController
 import multiprocessing as mp
 from PyQt4 import QtGui
 import sys
+import logging
+import getopt
 
 class DaqulaApplication(mp.Process):
     def __init__(self, argv):
         super(DaqulaApplication, self).__init__()
         self.argv = argv
+
+        loglevel = ''
+        default_loglevel = 'WARNING'
+
+        try:
+            opts, args = getopt.getopt(argv[1:], "hl:", ["log="])
+        except getopt.GetoptError:
+            print 'daqula.py -l <logging_level>'
+            sys.exit(2)
+        for opt, arg in opts:
+            if opt == '-h':
+                print 'daqula.py -l <logging_level>'
+                sys.exit()
+            elif opt in ("-l", "--log"):
+                loglevel = arg
+
+        if loglevel == '':
+            loglevel = default_loglevel
+        numeric_level = getattr(logging, loglevel.upper(), None)
+        if not isinstance(numeric_level, int):
+            raise ValueError('Invalid log level: %s' % loglevel)
+        logging.basicConfig(format='%(levelname)s: %(asctime)s: %(message)s',
+                            filename='daqula_app.log', level=numeric_level)
 
     def run(self):
         self.gui_app = QtGui.QApplication(self.argv)
@@ -62,7 +87,9 @@ class DaqulaApplication(mp.Process):
                                     file_header_available_cond=self.file_header_available_cond)
 
         self.nc.start()
+        logging.info('NetworkController started')
         self.sc.start()
+        logging.info('StorageController started')
 
         sys.exit(self.gui_app.exec_())
 
