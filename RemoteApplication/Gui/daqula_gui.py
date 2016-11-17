@@ -104,7 +104,7 @@ class MainWindow(QtGui.QMainWindow):
         self.checkBoxes.lockBoxes()
 
         # TODO: input validation
-        self.filepath_sender.send(self.ui.fileEdit.text())
+        self.filepath_sender.send(str(self.ui.fileEdit.text()))
         self.filepath_available_event.set()
 
         # construct connect control message
@@ -113,7 +113,7 @@ class MainWindow(QtGui.QMainWindow):
             connect_msg['seq'] = self.sequence
             self.sequence += 1
         connect_msg['type'] = 'CONNECT'
-        connect_msg['host'] = self.ui.serverIpEdit.text()
+        connect_msg['host'] = str(self.ui.serverIpEdit.text())
         connect_msg['port'] = int(self.ui.serverPortEdit.text())
         connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
         connect_msg['rate'] = int(self.ui.sampleRateEdit.text())
