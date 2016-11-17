@@ -6,17 +6,22 @@ import sys
 import control_signals_pb2
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, host, port, outgoing_queue, ack_queue):
+    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event, disconnected_event):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        # holds messages that have not been sent yet
-        self.outgoing_queue = outgoing_queue
+        # receives control messages from NetworkController to be sent over TCP control connection
+        # sends ACK messages back to NetworkController
+        self.control_protobuf_conn = control_protobuf_conn
 
-        # used to pass ACKs up to network controller
-        self.ack_queue = ack_queue
+        # threading.Condition variable to notify NetworkController when an ACK has been sent back up
+        self.ack_msg_from_cc_cond = ack_msg_from_cc_cond
+
+        # threading.Event variable for notifying NetworkController that we have connected to server (async)
+        self.connected_event = connected_event
+        self.disconnected_event = disconnected_event
 
         # holds serialized messages that have been received but not processed
         self.incoming_queue = mp.Queue()
@@ -25,13 +30,11 @@ class ControlClient(asyncore.dispatcher):
         # control_socket but have not yet been ACKed
         self.sent_dict = {}
 
-        self.host = host
-        self.port = port
         self.connected = False
 
-    def connect_control_port(self):
+    def connect_control_port(self, host, port):
         print 'ControlClient: attempting connection'
-        self.connect((self.host, self.port))
+        self.connect((host, port))
         self.connected = True
 
     def close_control_port(self):
@@ -43,12 +46,15 @@ class ControlClient(asyncore.dispatcher):
         print 'ControlClient: handle_connect() entered'
 
     def handle_close(self):
+        print 'ControlClient: handle_close() entered'
         self.connected = False
         self.close()
+        self.disconnected_event.set()
 
     def handle_read(self):
         # read 16 bit length header	
         size = bytearray(2)
+        # TODO: wrap in try/except and handle Connection Refused socket.error
         self.recv_into(size)
         length = size[0]
         print 'ControlClient: received length header: %s' % length
@@ -57,7 +63,7 @@ class ControlClient(asyncore.dispatcher):
         msg = self.recv(int(length))
         print 'ControlClient: received message: %s' % msg
 
-        # TODO: put onto incoming_queue and have another thread handle the parsing
+        # TODO: (probably not necessary) put onto incoming_queue and have another thread handle the parsing
 
         # construct a container protobuf and parse into from serialized message
         ackWrapper = control_signals_pb2.RequestWrapper()
@@ -68,19 +74,24 @@ class ControlClient(asyncore.dispatcher):
         if sequence in self.sent_dict.keys():
             serialized_acked_request = self.sent_dict.pop(sequence)
             print 'ControlClient: ACKed request popped %s' % serialized_acked_request
-            self.ack_queue.put(serialized_acked_request)
+            self.control_protobuf_conn.send(serialized_acked_request)
+            with self.ack_msg_from_cc_cond:
+                self.ack_msg_from_cc_cond.notify()
 
     def readable(self):
         return True
 
     def writable(self):
         # we want to write whenever there are messages to be sent
-        is_writable = not self.outgoing_queue.empty()
+        is_writable = self.control_protobuf_conn.poll()
         return is_writable
 
     def handle_write(self):
-        # grab request to be sent from the queue
-        serialized_req_wrap = self.outgoing_queue.get_nowait()
+        # notify NetworkController that we are connected
+        self.connected_event.set()
+
+        # grab request to be sent from the incoming connection
+        serialized_req_wrap = self.control_protobuf_conn.recv()
         print 'ControlClient: handle_write() retrieved msg from outgoing queue'
 
         # parse the request for storage in sent_dict
@@ -96,4 +107,8 @@ class ControlClient(asyncore.dispatcher):
         print 'ControlClient: sent message bytes: %d' % sent
 
         print 'ControlClient: adding request %d to sent_dict' % request_wrapper.sequence
-        self.sent_dict[request_wrapper.sequence] = serialized_req_wrap
+        if request_wrapper.sequence not in self.sent_dict.keys():
+            self.sent_dict[request_wrapper.sequence] = serialized_req_wrap
+        else:
+            raise RuntimeWarning('ControlClient: requestWrapper with sequence %d already in sent_dict' %
+                                 request_wrapper.sequence)
