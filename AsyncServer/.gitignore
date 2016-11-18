@@ -1,3 +1,5 @@
+Debug/
+/src/AsyncServer
 .settings/
 .project
 .cproject

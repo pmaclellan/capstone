@@ -55,7 +55,7 @@ int main()
     // Server allows 3 separate pairs of control/data connections
     pthread_t threadA[3];
 
-    for (int i = 0; i < NUM_CHANNELS; i++)
+    for(int i = 0; i < NUM_CHANNELS; i++)
     {
         adc_channels[i] = 1;
     }
@@ -66,11 +66,12 @@ int main()
     int yes = 1;
 
     // Set up socket 0 for control data
-    if ((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         error("ERROR socket failure");
     }
-    if (setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
+    if(setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
+            < 0)
     {
         error("ERROR setsockopt");
     }
@@ -79,16 +80,18 @@ int main()
     server.sin_family = AF_INET;
     server.sin_port = htons(CTRLPORT);
     server.sin_addr.s_addr = INADDR_ANY;
-    if (bind(socket_fd[0], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)
+    if(bind(socket_fd[0], (struct sockaddr *) &server, sizeof(struct sockaddr))
+            < 0)
     {
         error("ERROR binding failure");
     }
     // Set up socket 1 for signal data
-    if ((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    if((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
     {
         error("ERROR socket failure");
     }
-    if (setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
+    if(setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
+            < 0)
     {
         error("ERROR setsockopt");
     }
@@ -97,42 +100,47 @@ int main()
     server.sin_family = AF_INET;
     server.sin_port = htons(DATAPORT);
     server.sin_addr.s_addr = INADDR_ANY;
-    if (bind(socket_fd[1], (struct sockaddr *)&server, sizeof(struct sockaddr)) < 0)
+    if(bind(socket_fd[1], (struct sockaddr *) &server, sizeof(struct sockaddr))
+            < 0)
     {
         error("ERROR binding failure");
     }
 
     // Listen for control socket
-    if (listen(socket_fd[0], BACKLOG) < 0)
+    if(listen(socket_fd[0], BACKLOG) < 0)
     {
         error("ERROR listening failure");
     }
     // Listen for data socket
-    if (listen(socket_fd[1], BACKLOG) < 0)
+    if(listen(socket_fd[1], BACKLOG) < 0)
     {
         error("ERROR listening failure");
     }
 
     int thread_num = 0;
     // While loop waiting for connection
-    while (thread_num < 3)
+    while(thread_num < 3)
     {
         printf("Listening for control connection\n");
-        if ((client_fd[0] = accept(socket_fd[0], (struct sockaddr *)&dest, &size)) < 0)
+        if((client_fd[0] = accept(socket_fd[0], (struct sockaddr *) &dest,
+                &size)) < 0)
         {
             error("ERROR acception failure");
         }
-        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+        printf("Server got connection from client %s\n",
+                inet_ntoa(dest.sin_addr));
 
         // Give first, control connection to thread 0
         pthread_create(&threadA[thread_num], NULL, control_task, NULL);
 
         printf("Listening for data connection\n");
-        if ((client_fd[1] = accept(socket_fd[1], (struct sockaddr *)&dest, &size)) < 0)
+        if((client_fd[1] = accept(socket_fd[1], (struct sockaddr *) &dest,
+                &size)) < 0)
         {
             error("ERROR acception failure");
         }
-        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+        printf("Server got connection from client %s\n",
+                inet_ntoa(dest.sin_addr));
 
         // Give second, data connection to thread 1
         pthread_create(&threadA[thread_num], NULL, data_task, NULL);
@@ -140,7 +148,7 @@ int main()
         thread_num++;
     }
 
-    for (int i = 0; i < 3; i++)
+    for(int i = 0; i < 3; i++)
     {
         pthread_join(threadA[i], NULL);
     }
@@ -269,12 +277,13 @@ void *control_task(void *dummy)
                     close(client_fd[0]);
                     return NULL;
                 }
-		if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
-		{
-		    fprintf(stderr, "Failure Sending Messages\n");
-		    close(client_fd[0]);
-		    return NULL;
-		}
+                if(send(client_fd[0], ackString.data(),
+                        strlen(ackString.c_str()), 0) < 0)
+                {
+                    fprintf(stderr, "Failure Sending Messages\n");
+                    close(client_fd[0]);
+                    return NULL;
+                }
             }
             else
             {
@@ -333,8 +342,8 @@ void *data_task(void *dummy)
 //    }
 
     // Open the DMA
-    printf("Trying to open the dma driver\n");
     int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
+    printf("Opened DMA driver...\n");
     while(1)
     {
         // Read some data from the DMA
@@ -348,17 +357,16 @@ void *data_task(void *dummy)
         for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
         {
             send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0);
-            //printf("Server sending 0x%" PRIx64 "\n", buf[i]);
         }
-/*
-        for(int i = 0; i < activeCount; i++)
-        {
-            if (activeChannels[i] != -1)
-            {
-                send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
-            }
-        }
-*/
+        /*
+         for(int i = 0; i < activeCount; i++)
+         {
+         if (activeChannels[i] != -1)
+         {
+         send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
+         }
+         }
+         */
 
     }
 
