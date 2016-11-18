@@ -266,6 +266,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(False)
                                 self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
+                                
                             else:
                                 self.ui.connectButton.setText('Connect')
                                 self.ui.connectButton.clicked.disconnect()
@@ -277,6 +278,8 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
+                            
+                            self.showResultMessage(response)
 
                         elif response['type'] == 'DISCONNECT':
                             if response['success'] == True:
@@ -293,6 +296,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
+                                
                             else:
                                 self.ui.connectButton.setText('Disconnect')
                                 self.ui.connectButton.clicked.disconnect()
@@ -304,7 +308,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(False)
                                 self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
-                        # self.showResultMessage(response)
+                            
+                            self.showResultMessage(response)
+
                     else:
                         raise RuntimeWarning('unexpected message received from NetworkController')
             else:
@@ -358,17 +364,21 @@ class MainWindow(QtGui.QMainWindow):
     #     msg.setStandardButtons(QMessageBox.Ok)
 
         
-#     def showdialog(self):
-#         msg = QMessageBox()
-#         msg.setIcon(QMessageBox.Information)
-#         
-#         msg.setText(os.path.basename(str(self.ui.fileEdit.text())) + " already exists!")
-#         msg.setInformativeText("Are you sure you want to overwrite this file?")
-#         msg.setWindowTitle("Warning!")
-#         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-#         msg.buttonClicked.connect(self.msgbtn)
-#         msg.exec_()
-#     
+    def showResultMessage(self, message):
+        msg = QMessageBox()
+        if message['success']:
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("Success!")
+            msg.setWindowTitle("Success")
+            #msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            #msg.buttonClicked.connect(self.msgbtn)
+            msg.exec_()
+        else:
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Failure!")
+            msg.setWindowTitle("Action Failed!")
+            msg.setInformativeText(message['message'])
+     
 #     def msgbtn(self, i):
 #         if (i.text() == "&No"):
 #             fileUpdated = self.selectFile()
