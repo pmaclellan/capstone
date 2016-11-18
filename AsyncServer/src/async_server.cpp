@@ -288,6 +288,7 @@ void *data_task(void *dummy)
     //      uint16_t
     uint16_t * buf;
     size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
+    size_t sendSize = NUM_PACKETS * LINES_PER_PACKET * sizeof(uint64_t);
 //    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
 //    { -1 };
     buf = static_cast<uint16_t *>(malloc(bufSize));
@@ -343,7 +344,6 @@ void *data_task(void *dummy)
             //printf("reading %d bytes\n", bufSize);
 
             // Print the data the server has requested
-
             for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
             {
                 if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
