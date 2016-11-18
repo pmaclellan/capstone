@@ -69,8 +69,7 @@ int main()
     {
         error("ERROR socket failure");
     }
-    if(setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
-            < 0)
+    if(setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
     {
         error("ERROR setsockopt");
     }
@@ -79,8 +78,7 @@ int main()
     server.sin_family = AF_INET;
     server.sin_port = htons(CTRLPORT);
     server.sin_addr.s_addr = INADDR_ANY;
-    if(bind(socket_fd[0], (struct sockaddr *) &server, sizeof(struct sockaddr))
-            < 0)
+    if(bind(socket_fd[0], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
     {
         error("ERROR binding failure");
     }
@@ -89,8 +87,7 @@ int main()
     {
         error("ERROR socket failure");
     }
-    if(setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int))
-            < 0)
+    if(setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
     {
         error("ERROR setsockopt");
     }
@@ -99,8 +96,7 @@ int main()
     server.sin_family = AF_INET;
     server.sin_port = htons(DATAPORT);
     server.sin_addr.s_addr = INADDR_ANY;
-    if(bind(socket_fd[1], (struct sockaddr *) &server, sizeof(struct sockaddr))
-            < 0)
+    if(bind(socket_fd[1], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
     {
         error("ERROR binding failure");
     }
@@ -132,156 +128,150 @@ void *control_task(void *dummy)
 
     while(1)
     {
-	// Listen for control socket
-	if(listen(socket_fd[0], BACKLOG) < 0)
-	{
-	error("ERROR listening failure");
-	}
-	printf("Listening for control connection\n");
-	if((client_fd[0] = accept(socket_fd[0], (struct sockaddr *) &dest,
-	        &size)) < 0)
-	{
-	    error("ERROR acception failure");
-	}
-	printf("Server got connection from client %s\n",
-        inet_ntoa(dest.sin_addr));
+        // Listen for control socket
+        if(listen(socket_fd[0], BACKLOG) < 0)
+        {
+            error("ERROR listening failure");
+        }
+        printf("Listening for control connection\n");
+        if((client_fd[0] = accept(socket_fd[0], (struct sockaddr *) &dest, &size)) < 0)
+        {
+            error("ERROR acception failure");
+        }
+        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
-	while(1)
-	{
-		// Read incoming message
-		uint16_t messagesize;
-		int receive = recv(client_fd[0], &messagesize, sizeof(messagesize), 0);
-		if(receive < 0)
-		{
-		    error("ERROR reading failure");
-		}
-		else if(receive == 0)
-		{
-		    printf("ERROR client disconnected\n");
-		    break;
-		}
-		vector<char> buffer(messagesize);
-		if(recv(client_fd[0], buffer.data(), buffer.size(), 0) < 0)
-		{
-		    error("ERROR reading failure");
-		}
-		if(request_wrapper.ParseFromArray(buffer.data(), buffer.size())
-			== false)
-		{
-		    throw exception();
-		}
-		printf("Received wrapper with sequence #%d\n",
-			request_wrapper.sequence());
+        while(1)
+        {
+            // Read incoming message
+            uint16_t messagesize;
+            int receive = recv(client_fd[0], &messagesize, sizeof(messagesize), 0);
+            if(receive < 0)
+            {
+                error("ERROR reading failure");
+            }
+            else if(receive == 0)
+            {
+                printf("ERROR client disconnected\n");
+                break;
+            }
+            vector<char> buffer(messagesize);
+            if(recv(client_fd[0], buffer.data(), buffer.size(), 0) < 0)
+            {
+                error("ERROR reading failure");
+            }
+            if(request_wrapper.ParseFromArray(buffer.data(), buffer.size()) == false)
+            {
+                throw exception();
+            }
+            printf("Received wrapper with sequence #%d\n", request_wrapper.sequence());
 
-		// Complete functions based on which request was sent
-		if(request_wrapper.has_start()) // Start Request
-		{
-		    printf("Start Request\n");
-		    start_request = request_wrapper.start();
-		    printf("With port=%d and channels=%d\n", start_request.port(),
-			    start_request.channels());
+            // Complete functions based on which request was sent
+            if(request_wrapper.has_start()) // Start Request
+            {
+                printf("Start Request\n");
+                start_request = request_wrapper.start();
+                printf("With port=%d and channels=%d\n", start_request.port(), start_request.channels());
 
-		    // Parse active channels to find which are active and how many
-		    numChannels = 0;
-		    for(int i = 0; i < NUM_CHANNELS; i++)
-		    {
-			if(getBit(start_request.channels(), i) == 1)
-			{
-			    numChannels++;
-			    adc_channels[i] = 1;
-			}
-			else
-			{
-			    adc_channels[i] = 0;
-			}
-		    }
+                // Parse active channels to find which are active and how many
+                numChannels = 0;
+                for(int i = 0; i < NUM_CHANNELS; i++)
+                {
+                    if(getBit(start_request.channels(), i) == 1)
+                    {
+                        numChannels++;
+                        adc_channels[i] = 1;
+                    }
+                    else
+                    {
+                        adc_channels[i] = 0;
+                    }
+                }
 
-		    // Send sample rate to controller
-		    uint64_t code = 0;
-		    uint64_t sample_rate = static_cast<uint64_t>(start_request.rate());
-		    uint64_t sr_and_code = sample_rate;
-		    send(socket_control, &sr_and_code, sizeof(sr_and_code), 0);
+                // Send sample rate to controller
+                uint64_t code = 0;
+                uint64_t sample_rate = static_cast<uint64_t>(start_request.rate());
+                uint64_t sr_and_code = sample_rate;
+                send(socket_control, &sr_and_code, sizeof(sr_and_code), 0);
 
-		    // Read timestamp from controller
-		    uint64_t buff;
-		    recv(socket_control, &buff, sizeof(buff), 0);
-		    start_request.set_timestamp(buff);
+                // Read timestamp from controller
+                uint64_t buff;
+                recv(socket_control, &buff, sizeof(buff), 0);
+                start_request.set_timestamp(buff);
 
-		    // Send size of port number string over control socket
-		    start_request.set_port(data_port);
-		    request_wrapper.set_allocated_start(&start_request);
-		    request_wrapper.SerializeToString(&ackString);
-		    ackSize = strlen(ackString.c_str());
-		    if(send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
-		    {
-			fprintf(stderr, "Failure Sending Messages\n");
-			close(client_fd[0]);
-			return NULL;
-		    }
-		    // Send port number of streaming socket over control socket
-		    printf("Sending port number %d\n", start_request.port());
-		    if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()),
-			    0) < 0)
-		    {
-			fprintf(stderr, "Failure Sending Messages\n");
-			close(client_fd[0]);
-			return NULL;
-		    }
+                // Send size of port number string over control socket
+                start_request.set_port(data_port);
+                request_wrapper.set_allocated_start(&start_request);
+                request_wrapper.SerializeToString(&ackString);
+                ackSize = strlen(ackString.c_str());
+                if(send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
+                {
+                    fprintf(stderr, "Failure Sending Messages\n");
+                    close(client_fd[0]);
+                    return NULL;
+                }
+                // Send port number of streaming socket over control socket
+                printf("Sending port number %d\n", start_request.port());
+                if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
+                {
+                    fprintf(stderr, "Failure Sending Messages\n");
+                    close(client_fd[0]);
+                    return NULL;
+                }
 
-		    request_wrapper.release_start();
+                request_wrapper.release_start();
 
-		    read_data = true;
-		}
-		else if(request_wrapper.has_stop()) // Stop Request
-		{
-		    printf("Stop Request\n");
-		    stop_request = request_wrapper.stop();
-		    read_data = false;
+                read_data = true;
+            }
+            
+            else if(request_wrapper.has_stop()) // Stop Request
+            {
+                printf("Stop Request\n");
+                stop_request = request_wrapper.stop();
+                read_data = false;
 
-		    // Send stop to fifo
-		    uint64_t code = 0x0000000100000000;
-		    send(socket_control, &code, sizeof(uint64_t), 0);
+                // Send stop to fifo
+                uint64_t code = 0x0000000100000000;
+                send(socket_control, &code, sizeof(uint64_t), 0);
 
-		    // Read ack from controller
-		    uint64_t buff;
-		    recv(socket_control, &buff, sizeof(buff), 0);
-	 	    buff = 1;
+                // Read ack from controller
+                uint64_t buff;
+                recv(socket_control, &buff, sizeof(buff), 0);
+                buff = 1;
 
-		    if(buff == 1)
-		    {
-			// Send ACK back to client
-			request_wrapper.SerializeToString(&ackString);
-			ackSize = strlen(ackString.c_str());
-			printf("Sending size\n");
-			if(send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
-			{
-			    fprintf(stderr, "Failure Sending Messages\n");
-			    close(client_fd[0]);
-			    return NULL;
-			}
-			printf("Sending stop\n");
-			if(send(client_fd[0], ackString.data(),
-				strlen(ackString.c_str()), 0) < 0)
-			{
-			    fprintf(stderr, "Failure Sending Messages\n");
-			    close(client_fd[0]);
-			    return NULL;
-			}
-		    }
-		    else
-		    {
-			// Do something
-		    }
+                if(buff == 1)
+                {
+                    // Send ACK back to client
+                    request_wrapper.SerializeToString(&ackString);
+                    ackSize = strlen(ackString.c_str());
+                    printf("Sending size\n");
+                    if(send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
+                    {
+                        fprintf(stderr, "Failure Sending Messages\n");
+                        close(client_fd[0]);
+                        return NULL;
+                    }
+                    printf("Sending stop\n");
+                    if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
+                    {
+                        fprintf(stderr, "Failure Sending Messages\n");
+                        close(client_fd[0]);
+                        return NULL;
+                    }
+                }
+                else
+                {
+                    // Do something
+                }
 
-		    request_wrapper.release_stop();
-		}
-		else if(request_wrapper.has_sens()) // Sensitivity Request
-		{
-		    sensitivity_request = request_wrapper.sens();
+                request_wrapper.release_stop();
+            }
+            else if(request_wrapper.has_sens()) // Sensitivity Request
+            {
+                sensitivity_request = request_wrapper.sens();
 
-		    request_wrapper.release_sens();
-		}
-	}
+                request_wrapper.release_sens();
+            }
+        }
     }
 }
 
@@ -332,50 +322,49 @@ void *data_task(void *dummy)
     bool connection_status;
     while(1)
     {
-	// Listen for data socket
-	if(listen(socket_fd[1], BACKLOG) < 0)
-	{
-	error("ERROR listening failure");
-	}
-	printf("Listening for data connection\n");
-	if((client_fd[1] = accept(socket_fd[1], (struct sockaddr *) &dest, &size)) < 0)
-	{
-	error("ERROR acception failure");
-	}
-	printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
-	
-	while(1)
-	{
-		// Read some data from the DMA
-		//printf("Trying to read from the dma driver\n");
-		//printf("axidmaFd = %d, buf = %d, bufSize = %d\n", axiDmaFd, buf, bufSize);
-		read(axiDmaFd, buf, bufSize);
-		//printf("reading %d bytes\n", bufSize);
+        // Listen for data socket
+        if(listen(socket_fd[1], BACKLOG) < 0)
+        {
+            error("ERROR listening failure");
+        }
+        printf("Listening for data connection\n");
+        if((client_fd[1] = accept(socket_fd[1], (struct sockaddr *) &dest, &size)) < 0)
+        {
+            error("ERROR acception failure");
+        }
+        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
 
-		// Print the data the server has requested
+        while(1)
+        {
+            // Read some data from the DMA
+            //printf("Trying to read from the dma driver\n");
+            //printf("axidmaFd = %d, buf = %d, bufSize = %d\n", axiDmaFd, buf, bufSize);
+            read(axiDmaFd, buf, bufSize);
+            //printf("reading %d bytes\n", bufSize);
 
-		for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
-		{
-		    if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
-		    {
-			printf("ERROR client disconnected\n");
-			connection_status = false;
-			break;
-		    }
-		}
-		/*
-		 for(int i = 0; i < activeCount; i++)
-		 {
-		 if (activeChannels[i] != -1)
-		 {
-		 send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
-		 }
-		 }
-		 */
-		if (!connection_status)
-		    break;
-	}
+            // Print the data the server has requested
 
+            for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
+            {
+                if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
+                {
+                    printf("ERROR client disconnected\n");
+                    connection_status = false;
+                    break;
+                }
+            }
+            /*
+            for(int i = 0; i < activeCount; i++)
+            {
+                if (activeChannels[i] != -1)
+                {
+                    send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
+                }
+            }
+            */
+            if (!connection_status)
+                break;
+        }
     }
 
     free(buf);
