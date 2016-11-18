@@ -14,4 +14,12 @@ void sendToServer(int clientSocket, uint64_t value);
 uint64_t processStartRequest(uint64_t buf);
 void processStopRequest();
 
+typedef enum
+{
+    CONNECTED,
+    DISCONNECTED
+} SERVER_STATUS;
+
+extern SERVER_STATUS ServerStatus; // Global DMA status
+
 #endif /* SRC_PROCESS_IPC_H_ */

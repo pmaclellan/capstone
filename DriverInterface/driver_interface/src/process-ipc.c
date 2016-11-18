@@ -15,16 +15,20 @@
 #include <sys/un.h>
 #include <time.h>
 #include "axi-dma.h"
+#include "process-ipc.h"
 
 #define BILLION 1E9
 #define DMA_TIMER_FREQ 0x5F5E100 // 100MHz
 #define MAX_CONNECTIONS 5
 #define SOCK_PATH "/tmp/controller.sock"
 
+SERVER_STATUS ServerStatus = DISCONNECTED;
+
 int setupConnection()
 {
     int serverSock;
     int clientSock;
+    int retValue = -1;
     int len;
     socklen_t t;
     struct sockaddr_un local;
@@ -34,7 +38,7 @@ int setupConnection()
     if((serverSock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
     {
         perror("Error creating controller socket");
-        exit(1);
+        retValue = -1;
     }
 
     // Setup socket path
@@ -47,26 +51,32 @@ int setupConnection()
     if(bind(serverSock, (struct sockaddr *) &local, len) == -1)
     {
         perror("Error binding controller socket");
-        exit(1);
+        retValue = -1;
     }
 
     // Listen for connections
     if(listen(serverSock, MAX_CONNECTIONS) == -1)
     {
         perror("Error listening for socket connections");
-        exit(1);
+        retValue = -1;
     }
 
     printf("Waiting for a connection...\n");
     t = (socklen_t) sizeof(remote);
-    if((clientSock = accept(serverSock, (struct sockaddr *) &remote, &t)) == -1)
+    clientSock = accept(serverSock, (struct sockaddr *) &remote, &t);
+    if(clientSock == -1)
     {
         perror("Error accepting socket connection");
-        exit(1);
+        retValue = -1;
+    }
+    else
+    {
+        retValue = clientSock;
     }
 
     printf("Connected.\n");
-    return clientSock;
+    ServerStatus = CONNECTED;
+    return retValue;
 }
 
 uint64_t readFromServer(int clientSocket)
@@ -79,7 +89,8 @@ uint64_t readFromServer(int clientSocket)
     if(size != sizeof(uint64_t))
     {
         perror("Error reading data from server.\n");
-        exit(1);
+        // Socket must have disconnected....
+        ServerStatus = DISCONNECTED;
     }
 
     printf("Received 0x%" PRIx64 "\n", retValue);
