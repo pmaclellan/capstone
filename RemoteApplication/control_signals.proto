@@ -4,6 +4,7 @@ message StartRequest {
 	uint32 port = 1;
 	uint32 channels = 2;
 	uint32 rate = 3;
+	uint64 timestamp = 4;
 }
 
 message StopRequest {
