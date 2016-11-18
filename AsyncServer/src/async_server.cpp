@@ -40,10 +40,9 @@ void *data_task(void *);
 void connect_to_controller();
 
 int client_fd[2], socket_fd[2], socket_control;
-int adc_channels[NUM_CHANNELS];
+int adc_channels[NUM_CHANNELS+4];
 int numChannels;
 bool read_data;
-socklen_t size;
 
 RequestWrapper request_wrapper = RequestWrapper();
 StartRequest start_request = StartRequest();
@@ -59,7 +58,7 @@ int main()
     // Server allows 3 separate pairs of control/data connections
     pthread_t threadA[3];
 
-    for(int i = 0; i < NUM_CHANNELS; i++)
+    for(int i = 0; i < NUM_CHANNELS+4; i++)
     {
         adc_channels[i] = 1;
     }
@@ -86,6 +85,7 @@ void *control_task(void *)
 {
     int yes = 1;
     struct sockaddr_in server, dest;
+    socklen_t size;
 
     // Set up socket 0 for control data
     if((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -106,7 +106,7 @@ void *control_task(void *)
         error("ERROR binding failure");
     }
 
-    connect_to_controller();
+    //connect_to_controller();
     int data_port = 10002;
     std::string ackString;
     uint16_t ackSize;
@@ -136,7 +136,7 @@ void *control_task(void *)
             }
             else if(receive == 0)
             {
-                printf("ERROR client disconnected\n");
+                printf("ERROR control client disconnected\n");
                 // Send stop to fifo
                 uint64_t code = 0x0000000100000000;
                 send(socket_control, &code, sizeof(uint64_t), 0);
@@ -162,7 +162,7 @@ void *control_task(void *)
             {
                 printf("Start Request\n");
                 start_request = request_wrapper.start();
-                printf("With port=%d and channels=%d\n", start_request.port(), start_request.channels());
+                //printf("With port=%d and channels=%d\n", start_request.port(), start_request.channels());
 
                 // Parse active channels to find which are active and how many
                 numChannels = 0;
@@ -171,13 +171,18 @@ void *control_task(void *)
                     if(getBit(start_request.channels(), i) == 1)
                     {
                         numChannels++;
-                        adc_channels[i] = 1;
+                        adc_channels[i+4] = 1;
                     }
                     else
                     {
-                        adc_channels[i] = 0;
+                        adc_channels[i+4] = 0;
                     }
                 }
+                /*printf("Active channels: ");
+                for(int i = 0; i < 36; i++)
+                {
+                    cout<<adc_channels[i]; 
+                }*/
 
                 // Send sample rate to controller
                 uint64_t code = 0;
@@ -189,7 +194,8 @@ void *control_task(void *)
                 uint64_t buff;
                 recv(socket_control, &buff, sizeof(buff), 0);
                 start_request.set_timestamp(buff);
-
+                //printf("Sending timestamp %lu\n", request_wrapper.start().timestamp());
+                
                 // Send size of port number string over control socket
                 start_request.set_port(data_port);
                 request_wrapper.set_allocated_start(&start_request);
@@ -202,7 +208,6 @@ void *control_task(void *)
                     return NULL;
                 }
                 // Send port number of streaming socket over control socket
-                printf("Sending port number %d\n", start_request.port());
                 if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
                 {
                     fprintf(stderr, "Failure Sending Messages\n");
@@ -228,21 +233,19 @@ void *control_task(void *)
                 // Read ack from controller
                 uint64_t buff;
                 recv(socket_control, &buff, sizeof(buff), 0);
-                buff = 1;
 
                 if(buff == 1)
                 {
                     // Send ACK back to client
                     request_wrapper.SerializeToString(&ackString);
                     ackSize = strlen(ackString.c_str());
-                    printf("Sending size\n");
                     if(send(client_fd[0], &ackSize, sizeof(ackSize), 0) < 0)
                     {
                         fprintf(stderr, "Failure Sending Messages\n");
                         close(client_fd[0]);
                         return NULL;
                     }
-                    printf("Sending stop\n");
+                    //printf("Sending stop\n");
                     if(send(client_fd[0], ackString.data(), strlen(ackString.c_str()), 0) < 0)
                     {
                         fprintf(stderr, "Failure Sending Messages\n");
@@ -257,6 +260,7 @@ void *control_task(void *)
 
                 request_wrapper.release_stop();
             }
+
             else if(request_wrapper.has_sens()) // Sensitivity Request
             {
                 sensitivity_request = request_wrapper.sens();
@@ -271,6 +275,7 @@ void *data_task(void *)
 {
     int yes = 1;
     struct sockaddr_in server, dest;
+    socklen_t size;
 
     // Set up socket 1 for signal data
     if((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -338,12 +343,12 @@ void *data_task(void *)
         uint64_t * sendFramePosition = sendBuf;
         while(1)
         {
-            if (sendFrame)
+            if(sendFrame)
             {
                 // Send the data
-                if (send(client_fd[1], sendBuf, sendSize, 0))
+                if(send(client_fd[1], sendBuf, sendSize, 0) < 0)
                 {
-                    printf("ERROR client disconnected\n");
+                    printf("ERROR data client disconnected\n");
                     // Send stop to fifo
                     uint64_t code = 0x0000000100000000;
                     send(socket_control, &code, sizeof(uint64_t), 0);
@@ -363,7 +368,7 @@ void *data_task(void *)
                 read(axiDmaFd, sendFramePosition, readFrameSize);
                 sendFrameCurrentSize += readFrameSize;
                 sendFramePosition += (readFrameSize / 2);
-                if (sendFrameCurrentSize == sendSize)
+                if(sendFrameCurrentSize == sendSize)
                 {
                     sendFrame = true;
                 }
@@ -376,7 +381,7 @@ void *data_task(void *)
         }
     }
 
-    free (buf);
+    free (sendBuf);
     close(axiDmaFd);
 }
 
