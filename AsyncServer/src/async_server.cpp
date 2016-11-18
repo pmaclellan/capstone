@@ -22,6 +22,7 @@
 #define BACKLOG 5
 #define SOCK_PATH "/tmp/controller.sock"
 #define NUM_CHANNELS 32
+#define MAX_SEND_SIZE 8000
 
 // DMA Data Sizes
 // TODO: These are defined both in this server and in the driver_interface...
@@ -299,41 +300,19 @@ void *data_task(void *)
     //      Note: Conceptually, a line is 8 bytes. However for the purposes of
     //      only sending active channels, the array of data is broken down into
     //      uint16_t
-    uint16_t * buf;
-    size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
-    size_t sendSize = NUM_PACKETS * LINES_PER_PACKET * sizeof(uint64_t);
-//    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
-//    { -1 };
-    printf("data");
-    buf = static_cast<uint16_t *>(malloc(bufSize));
-    for (int i = 0; i < bufSize; i++)
-    {
-        buf[i] = i;
-    }
-    // Get indexes for the start of every packet*/
-    int activeCount = 0;
-/*    // Loop through every packet
-    for(int i = 0; i < NUM_PACKETS; i++)
-    {
-        int packetIndex = i * LINES_PER_PACKET * 4;
-        // Add the 0xDEAD and the timestamp to the active indexes
-        for(int j = 0; j < sizeof(uint64_t); j++)
-        {
-            activeChannels[activeCount] = packetIndex + j;
-            activeCount++;
-        }
-        // Loop through the channels in that packet
-        for(int channel = 0; channel < NUM_CHANNELS; channel++)
-        {
-            if(adc_channels[channel] == 1)
-            {
-                activeChannels[activeCount] = packetIndex + sizeof(uint64_t)
-                        + channel;
-                activeCount++;
-            }
-        }
-    }
-*/
+    uint64_t * readBuf;
+    uint64_t * sendBuf;
+    size_t readSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
+    size_t readFrameSize = NUM_PACKETS * LINES_PER_PACKET * sizeof(uint64_t);
+
+    // Send size should be as many frames as we can up to the max send size
+    int framesToSend = MAX_SEND_SIZE / readFrameSize;
+
+    size_t sendSize = framesToSend * readFrameSize;
+
+    readBuf = static_cast<uint64_t *>(malloc(readSize));
+    sendBuf = static_cast<uint64_t *>(malloc(sendSize));
+
     // Open the DMA
     int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
     printf("Opened DMA driver...\n");
@@ -354,18 +333,15 @@ void *data_task(void *)
         printf("Server got connection from data client %s\n", inet_ntoa(dest.sin_addr));
         connection_status = true;
 
+        bool sendFrame = false;
+        size_t sendFrameCurrentSize = 0;
+        uint64_t * sendFramePosition = sendBuf;
         while(1)
         {
-            // Read some data from the DMA
-            //printf("Trying to read from the dma driver\n");
-            //printf("axidmaFd = %d, buf = %d, bufSize = %d\n", axiDmaFd, buf, bufSize);
-            read(axiDmaFd, buf, bufSize);
-            //printf("reading %d bytes\n", bufSize);
-
-            // Print the data the server has requested
-            for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
+            if (sendFrame)
             {
-                if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
+                // Send the data
+                if (send(client_fd[1], sendBuf, sendSize, 0))
                 {
                     printf("ERROR client disconnected\n");
                     // Send stop to fifo
@@ -377,32 +353,30 @@ void *data_task(void *)
                     recv(socket_control, &buff, sizeof(buff), 0);
 
                     connection_status = false;
-                    break;
+                }
+                sendFramePosition = sendBuf; // Reset our position back to the
+                                             // beginning of the send frame
+            }
+            else
+            {
+                // Keep building the send buffer
+                read(axiDmaFd, sendFramePosition, readFrameSize);
+                sendFrameCurrentSize += readFrameSize;
+                sendFramePosition += (readFrameSize / 2);
+                if (sendFrameCurrentSize == sendSize)
+                {
+                    sendFrame = true;
                 }
             }
-            
-/*            for(int i = 0; i < activeCount; i++)
+
+            if(!connection_status)
             {
-                if (activeChannels[i] != -1)
-                {
-                    if ((sendcheck = send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0)) < 0)
-                    {
-                        printf("ERROR client disconnected\n");
-                        // Send stop to fifo
-                        uint64_t code = 0x0000000100000000;
-                        send(socket_control, &code, sizeof(uint64_t), 0);
-                        connection_status = false;
-                        break;
-                    }
-                }
-            }*/
-            
-            if (!connection_status)
                 break;
+            }
         }
     }
 
-    free(buf);
+    free (buf);
     close(axiDmaFd);
 }
 
