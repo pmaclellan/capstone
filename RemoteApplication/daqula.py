@@ -15,7 +15,7 @@ class DaqulaApplication(mp.Process):
         self.argv = argv
 
         loglevel = ''
-        default_loglevel = 'WARNING'
+        default_loglevel = 'INFO'
 
         try:
             opts, args = getopt.getopt(argv[1:], "hl:", ["log="])
@@ -46,7 +46,8 @@ class DaqulaApplication(mp.Process):
         # GUI <--> NC
         self.gui_control_conn, self.nc_control_conn = mp.Pipe(duplex=True)
         # NC -> GUI
-        self.gui_data_receiver, self.gui_data_sender = mp.Pipe(duplex=False)
+        # self.gui_data_receiver, self.gui_data_sender = mp.Pipe(duplex=False)
+        self.gui_data_queue = mp.Queue()
         # GUI -> SC
         self.filepath_receiver, self.filepath_sender = mp.Pipe(duplex=False)
         # NC -> SC
@@ -63,7 +64,7 @@ class DaqulaApplication(mp.Process):
         self.reading_to_be_stored_event = mp.Event()
 
         self.gui = MainWindow(control_conn=self.gui_control_conn,
-                              data_receiver=self.gui_data_receiver,
+                              data_queue=self.gui_data_queue,
                               filepath_sender=self.filepath_sender,
                               readings_to_be_plotted_event=self.readings_to_be_plotted_event,
                               filepath_available_event=self.filepath_available_event,
@@ -72,7 +73,7 @@ class DaqulaApplication(mp.Process):
 
         self.nc = NetworkController(storage_sender=self.storage_sender,
                                     gui_control_conn=self.nc_control_conn,
-                                    gui_data_sender=self.gui_data_sender,
+                                    gui_data_queue=self.gui_data_queue,
                                     file_header_sender=self.file_header_sender,
                                     file_header_available_event=self.file_header_available_event,
                                     reading_to_be_stored_event=self.reading_to_be_stored_event,

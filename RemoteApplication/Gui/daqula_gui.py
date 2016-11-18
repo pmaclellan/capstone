@@ -1,4 +1,3 @@
-import sys
 import sip
 sip.setapi('QVariant',2)
 from PyQt4 import QtGui, uic, QtCore, QtGui
@@ -8,16 +7,16 @@ import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.ptime import time
 import os
-from datetime import datetime
 import multiprocessing as mp
 import threading
 import Queue
 import inspect
 import logging
+import time as realtime
 
 
 class MainWindow(QtGui.QMainWindow):
-    def __init__(self, control_conn, data_receiver, filepath_sender,
+    def __init__(self, control_conn, data_queue, filepath_sender,
                  readings_to_be_plotted_event, filepath_available_event,
                  control_msg_from_gui_event, control_msg_from_nc_event):
         super(MainWindow, self).__init__()
@@ -26,7 +25,7 @@ class MainWindow(QtGui.QMainWindow):
         self.control_conn = control_conn
   
         # mp.Connection for receiving raw data stream for plotting
-        self.data_receiver = data_receiver
+        self.data_queue = data_queue
   
         # mp.Connection for sending directory to store binary files in to StorageController
         self.filepath_sender = filepath_sender
@@ -122,8 +121,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
-        with self.msg_to_be_sent_event:
-            self.msg_to_be_sent_event.notify()
+        self.msg_to_be_sent_event.set()
 
 
         # TODO: show a 'connecting...' spinner
@@ -149,8 +147,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # put disconnect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(disconnect_msg)
-        with self.msg_to_be_sent_event:
-            self.msg_to_be_sent_event.notify()
+        self.msg_to_be_sent_event.set()
 
         # TODO: show a 'disconnecting...' spinner
 
@@ -254,6 +251,7 @@ class MainWindow(QtGui.QMainWindow):
                             if response['success'] == True:
                                 # grab 64-bit Unix timestamp to add to each reading offset
                                 self.start_time = response['timestamp']
+                                self.chunk_size = response['chunk']
                                 self.data_receiver_thread.start()
 
                                 self.ui.connectButton.setText('Disconnect')
@@ -316,31 +314,23 @@ class MainWindow(QtGui.QMainWindow):
     def recv_data_stream(self, *args):
         stop_event = args[0]
         # reading_block will be a list of bytearrays each containing one full sample
+        avg_block = []
         reading_block = []
-        num_channels = self.checkBoxes.numActive()
-        bytes_per_500 = (num_channels + 4) * 2 * 500
-        while not stop_event.is_set():
-            if self.data_receiver.poll():
-                raw_reading = self.data_receiver.recv()
-                reading_block.append(raw_reading)
-                if len(reading_block) >= bytes_per_500:
-                    numpy_array_list = self.create_numpy_arrays(reading_block, num_channels)
-                    self.numpy_data_queue.put(numpy_array_list)
-                    reading_block = []
-            else:
-                while not self.stop_event.is_set():
-                    if self.readings_to_be_plotted_event.wait(1.0):
-                        self.readings_to_be_plotted_event.clear()
-                        break
+        current_time = 0
+        prev_time = 0
 
-    def create_numpy_arrays(self, reading_block, num_channels):
-        numpy_arrays = []
-        # offset by 8 bytes to skip the DEAD, TS header
-        for i in range(8, 2 * num_channels + 8, 2):
-            # create a list of len(reading_block) 16-bit readings for each active channel
-            channel = [(x[i+1] << 8) + x[i] for x in reading_block]
-            numpy_arrays.append(np.array(channel))
-        return numpy_arrays
+        while not stop_event.is_set():
+            raw_reading = self.data_queue.get()
+            current_time = realtime.time()
+            freq = (1.0 /(current_time - prev_time)) * self.chunk_size
+            prev_time = current_time
+            avg_block.append(freq)
+            if len(avg_block) == 50:
+                reading_block.append(sum(avg_block) / len(avg_block))
+                avg_block = []
+            if len(reading_block) == 10:
+                self.numpy_data_queue.put(reading_block)
+                reading_block = []
 
     # def showResultMessage(self, message):
     #     msg = QMessageBox()
@@ -382,15 +372,16 @@ class DaqPlot:
         self.numpy_data_queue = numpy_data_queue
         
     def initPlot(self, numPlots):
-        self.nPlots = numPlots
-        self.nSamples = 500
+        # self.nPlots = numPlots
+        self.nPlots = 1
+        self.nSamples = 10
         self.curves = []
         for i in range(self.nPlots):
             c = pg.PlotCurveItem(pen=(i,self.nPlots*1.3))
             self.parent.ui.daqPlot.addItem(c)
             c.setPos(0,i*6)
             self.curves.append(c)
-        self.parent.ui.daqPlot.setYRange(0, self.nPlots*6)
+        self.parent.ui.daqPlot.setYRange(0, 250000)
         self.parent.ui.daqPlot.setXRange(0, self.nSamples)
         self.parent.ui.daqPlot.resize(600,900)
         self.x = np.linspace(-8*np.pi, 8*np.pi, 500)
@@ -417,11 +408,10 @@ class DaqPlot:
         if not self.numpy_data_queue.empty():
             numpy_data = self.numpy_data_queue.get()
             self.count += 1
-            #print "---------", count
             for i in range(self.nPlots):
                 #self.curves[i].setData(self.data[(self.ptr+i)%self.data.shape[0]])
                 # self.curves[i].setData(0.25*np.sin(180*np.pi*self.x)*self.fps)
-                self.curves[i].setData(numpy_data[i])
+                self.curves[i].setData(np.array(numpy_data))
             #print "   setData done."
             self.ptr += self.nPlots
             now = time()

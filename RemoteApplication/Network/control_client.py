@@ -52,6 +52,7 @@ class ControlClient(asyncore.dispatcher):
         self.connected = False
         self.close()
         self.disconnected_event.set()
+        return False
 
     def handle_read(self):
         # read 16 bit length header	

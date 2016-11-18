@@ -11,7 +11,7 @@ import logging
 
 
 class NetworkController(mp.Process):
-    def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
+    def __init__(self, storage_sender, gui_control_conn, gui_data_queue, file_header_sender,
                  file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_event,
                  control_msg_from_gui_event, control_msg_from_nc_event):
         super(NetworkController, self).__init__()
@@ -24,7 +24,7 @@ class NetworkController(mp.Process):
         self.gui_control_conn = gui_control_conn
 
         # mp.Connection for sending ADC readings to GUI for plotting
-        self.gui_data_sender = gui_data_sender
+        self.gui_data_queue = gui_data_queue
 
         # mp.Connection for sending start_time, channel_bitmask, and chunk_size to SC
         self.file_header_sender = file_header_sender
@@ -75,7 +75,7 @@ class NetworkController(mp.Process):
                                             connected_event=self.control_client_connected_event,
                                             disconnected_event=self.control_client_disconnected_event)
 
-        self.data_client = DataClient(gui_data_sender=self.gui_data_sender,
+        self.data_client = DataClient(gui_data_queue=self.gui_data_queue,
                                       storage_sender=self.storage_sender,
                                       reading_to_be_stored_event=self.reading_to_be_stored_event,
                                       readings_to_be_plotted_event=self.readings_to_be_plotted_event)
@@ -112,10 +112,10 @@ class NetworkController(mp.Process):
             self.loop_thread.start()
             return success
 
-    def connect_data_port(self, host, port):
+    def connect_data_port(self, host, port, chunk_size, active_channels):
         logging.debug('NetworkController: connect_data_port() entered')
         if self.data_client is not None and not self.data_client.connected:
-            return self.data_client.connect_data_port(host, port)
+            return self.data_client.connect_data_port(host, port, chunk_size, active_channels)
 
     def close_control_port(self):
         logging.debug('NetworkController: attempting to close control port')
@@ -129,23 +129,21 @@ class NetworkController(mp.Process):
         logging.debug('NetworkController: attempting to close data port')
         return self.data_client.close_data_port()
 
-    # def processChannelUpdate(self, sender, checked):
-    #     if checked:
-    #         if sender.text() not in self.active_channels:
-    #             bisect.insort(self.active_channels, str(sender.text()))
-    #     else:
-    #         if sender.text() in self.active_channels:
-    #             self.active_channels.remove(sender.text())
-    #
-    #     print(self.active_channels)
-    #     self.channel_mask = self.generateChannelBitMask()
-    #     self.data_client.update_active_channels(self.active_channels)
-    #     print(self.channel_mask)
-
     def asyncore_loop(self):
         while not self.stop_event.is_set():
-            asyncore.loop(timeout=1.0, count=1)
+            asyncore.loop(timeout=1.0, count=1, use_poll=True)
         logging.debug('NetworkController: asyncore loop thread finished')
+
+    def get_channels_from_bitmask(self, bitmask):
+        active_channels = []
+        num_ADCs = 4
+        num_channels_per_ADC = 8
+        for adc in range(num_ADCs):
+            for channel in range(num_channels_per_ADC):
+                active = np.bitwise_and(np.left_shift(0x01, adc * num_channels_per_ADC + channel), bitmask)
+                if active > 0:
+                    active_channels.append(str(adc) + '.' + str(channel))
+        return active_channels
 
     def recv_from_gui(self):
         while not self.stop_event.is_set():
@@ -245,14 +243,19 @@ class NetworkController(mp.Process):
                     # make sure that we're getting the channels we expect
                     if start_request.channels != msg['channels']:
                         raise RuntimeWarning('NetworkController: active channels in ACK differ from requested')
-                    self.data_client.update_active_channels(start_request.channels)
 
                     # send header info to SC and notify
-                    header = (start_request.timestamp, start_request.channels, self.data_client.chunk_size)
+                    active_channels = self.get_channels_from_bitmask(start_request.channels)
+                    bytes_per_sample = (len(active_channels) + 4) * 2
+                    chunk_size = min(113, int(msg['rate'] * bytes_per_sample * 0.00001))
+                    header = (start_request.timestamp,
+                            start_request.channels,
+                            chunk_size,
+                            start_request.rate)
                     self.file_header_sender.send(header)
                     self.file_header_available_event.set()
 
-                    data_connect_success = self.connect_data_port(self.host, start_request.port)
+                    data_connect_success = self.connect_data_port(self.host, start_request.port, chunk_size, active_channels)
 
                     logging.debug('NetworkController: data_connect_success = %s', data_connect_success)
 
@@ -262,6 +265,7 @@ class NetworkController(mp.Process):
                         reply_msg['success'] = True
                         reply_msg['message'] = 'Successfully connected control and data ports to host %s' % self.host
                         reply_msg['timestamp'] = start_request.timestamp
+                        reply_msg['chunk'] = chunk_size
 
                         # send an ACK message to GUI and notify its receiver
                         self.gui_control_conn.send(reply_msg)
