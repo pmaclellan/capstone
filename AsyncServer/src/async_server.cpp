@@ -42,7 +42,6 @@ int client_fd[2], socket_fd[2], socket_control;
 int adc_channels[NUM_CHANNELS];
 int numChannels;
 bool read_data;
-struct sockaddr_in server, dest;
 socklen_t size;
 
 RequestWrapper request_wrapper = RequestWrapper();
@@ -54,51 +53,14 @@ int main()
 {
     GOOGLE_PROTOBUF_VERIFY_VERSION;
 
+    struct sockaddr_in server, dest;
+
     // Server allows 3 separate pairs of control/data connections
     pthread_t threadA[3];
 
     for(int i = 0; i < NUM_CHANNELS; i++)
     {
         adc_channels[i] = 1;
-    }
-
-    int yes = 1;
-
-    // Set up socket 0 for control data
-    if((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        error("ERROR socket failure");
-    }
-    if(setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
-    {
-        error("ERROR setsockopt");
-    }
-    memset(&server, 0, sizeof(server));
-    memset(&dest, 0, sizeof(dest));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(CTRLPORT);
-    server.sin_addr.s_addr = INADDR_ANY;
-    if(bind(socket_fd[0], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
-    {
-        error("ERROR binding failure");
-    }
-    // Set up socket 1 for signal data
-    if((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    {
-        error("ERROR socket failure");
-    }
-    if(setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
-    {
-        error("ERROR setsockopt");
-    }
-    memset(&server, 0, sizeof(server));
-    memset(&dest, 0, sizeof(dest));
-    server.sin_family = AF_INET;
-    server.sin_port = htons(DATAPORT);
-    server.sin_addr.s_addr = INADDR_ANY;
-    if(bind(socket_fd[1], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
-    {
-        error("ERROR binding failure");
     }
 
     // Give first, control connection to thread 0
@@ -119,8 +81,30 @@ int main()
     return 0;
 }
 
-void *control_task(void *dummy)
+void *control_task(void *)
 {
+    int yes = 1;
+    struct sockaddr_in server, dest;
+
+    // Set up socket 0 for control data
+    if((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        error("ERROR socket failure");
+    }
+    if(setsockopt(socket_fd[0], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
+    {
+        error("ERROR setsockopt");
+    }
+    memset(&server, 0, sizeof(server));
+    memset(&dest, 0, sizeof(dest));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(CTRLPORT);
+    server.sin_addr.s_addr = INADDR_ANY;
+    if(bind(socket_fd[0], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
+    {
+        error("ERROR binding failure");
+    }
+
     connect_to_controller();
     int data_port = 10002;
     std::string ackString;
@@ -152,6 +136,13 @@ void *control_task(void *dummy)
             else if(receive == 0)
             {
                 printf("ERROR client disconnected\n");
+                // Send stop to fifo
+                uint64_t code = 0x0000000100000000;
+                send(socket_control, &code, sizeof(uint64_t), 0);
+
+                // Read ack from controller
+                uint64_t buff;
+                recv(socket_control, &buff, sizeof(buff), 0);
                 break;
             }
             vector<char> buffer(messagesize);
@@ -275,8 +266,30 @@ void *control_task(void *dummy)
     }
 }
 
-void *data_task(void *dummy)
+void *data_task(void *)
 {
+    int yes = 1;
+    struct sockaddr_in server, dest;
+
+    // Set up socket 1 for signal data
+    if((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+        error("ERROR socket failure");
+    }
+    if(setsockopt(socket_fd[1], SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) < 0)
+    {
+        error("ERROR setsockopt");
+    }
+    memset(&server, 0, sizeof(server));
+    memset(&dest, 0, sizeof(dest));
+    server.sin_family = AF_INET;
+    server.sin_port = htons(DATAPORT);
+    server.sin_addr.s_addr = INADDR_ANY;
+    if(bind(socket_fd[1], (struct sockaddr *) &server, sizeof(struct sockaddr)) < 0)
+    {
+        error("ERROR binding failure");
+    }
+
     // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
     // configure. This is a bug but we'll hack it here and disregard the last 2
     // packets.
@@ -291,31 +304,36 @@ void *data_task(void *dummy)
     size_t sendSize = NUM_PACKETS * LINES_PER_PACKET * sizeof(uint64_t);
 //    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
 //    { -1 };
+    printf("data");
     buf = static_cast<uint16_t *>(malloc(bufSize));
-//    // Get indexes for the start of every packet
-//    int activeCount = 0;
-//    // Loop through every packet
-//    for(int i = 0; i < NUM_PACKETS; i++)
-//    {
-//        int packetIndex = i * LINES_PER_PACKET * 4;
-//        // Add the 0xDEAD and the timestamp to the active indexes
-//        for(int j = 0; j < sizeof(uint64_t); j++)
-//        {
-//            activeChannels[activeCount] = packetIndex + j;
-//            activeCount++;
-//        }
-//        // Loop through the channels in that packet
-//        for(int channel = 0; channel < NUM_CHANNELS; channel++)
-//        {
-//            if(adc_channels[channel] == 1)
-//            {
-//                activeChannels[activeCount] = packetIndex + sizeof(uint64_t)
-//                        + channel;
-//                activeCount++;
-//            }
-//        }
-//    }
-
+    for (int i = 0; i < bufSize; i++)
+    {
+        buf[i] = i;
+    }
+    // Get indexes for the start of every packet*/
+    int activeCount = 0;
+/*    // Loop through every packet
+    for(int i = 0; i < NUM_PACKETS; i++)
+    {
+        int packetIndex = i * LINES_PER_PACKET * 4;
+        // Add the 0xDEAD and the timestamp to the active indexes
+        for(int j = 0; j < sizeof(uint64_t); j++)
+        {
+            activeChannels[activeCount] = packetIndex + j;
+            activeCount++;
+        }
+        // Loop through the channels in that packet
+        for(int channel = 0; channel < NUM_CHANNELS; channel++)
+        {
+            if(adc_channels[channel] == 1)
+            {
+                activeChannels[activeCount] = packetIndex + sizeof(uint64_t)
+                        + channel;
+                activeCount++;
+            }
+        }
+    }
+*/
     // Open the DMA
     int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
     printf("Opened DMA driver...\n");
@@ -350,19 +368,35 @@ void *data_task(void *dummy)
                 if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
                 {
                     printf("ERROR client disconnected\n");
+                    // Send stop to fifo
+                    uint64_t code = 0x0000000100000000;
+                    send(socket_control, &code, sizeof(uint64_t), 0);
+
+                    // Read ack from controller
+                    uint64_t buff;
+                    recv(socket_control, &buff, sizeof(buff), 0);
+
                     connection_status = false;
                     break;
                 }
             }
-            /*
-            for(int i = 0; i < activeCount; i++)
+            
+/*            for(int i = 0; i < activeCount; i++)
             {
                 if (activeChannels[i] != -1)
                 {
-                    send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0);
+                    if ((sendcheck = send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0)) < 0)
+                    {
+                        printf("ERROR client disconnected\n");
+                        // Send stop to fifo
+                        uint64_t code = 0x0000000100000000;
+                        send(socket_control, &code, sizeof(uint64_t), 0);
+                        connection_status = false;
+                        break;
+                    }
                 }
-            }
-            */
+            }*/
+            
             if (!connection_status)
                 break;
         }
