@@ -9,7 +9,7 @@
 #include "axi-gpio.h"
 #include "axi-dma.h"
 
-DMA_STATUS Status = UNUSED;
+DMA_STATUS DmaStatus = UNUSED;
 
 void initDMA()
 {
