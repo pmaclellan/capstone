@@ -19,7 +19,7 @@ typedef enum
     RUNNING
 } DMA_STATUS;
 
-extern DMA_STATUS Status; // Global DMA status
+extern DMA_STATUS DmaStatus; // Global DMA status
 
 void initDMA();
 void startDMA(uint16_t sampleFreq);
