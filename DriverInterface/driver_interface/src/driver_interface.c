@@ -23,40 +23,56 @@ void initDMA();
 
 int main(void)
 {
-    int clientSock;
+    int clientSock = -1;
     uint64_t currentTime;
     uint64_t buf;
 
     // DMA is initially unused
-    Status = UNUSED;
+    DmaStatus = UNUSED;
     initDMA(); // Set DMA config values
     // DMA is configured
-    Status = EMBRYO;
+    DmaStatus = EMBRYO;
 
     // Connect to the server
-    clientSock = setupConnection();
+    while(clientSock < 0)
+    {
+        clientSock = setupConnection();
+    }
 
     while (1)
     {
         buf = readFromServer(clientSock);
 
-        if (((buf >> 32) == 0) && (Status == EMBRYO))
+        if (ServerStatus == CONNECTED)
         {
-            // This is a start request
-            currentTime = processStartRequest(buf);
-            // Send the current time to the server
-            sendToServer(clientSock, currentTime);
-            // Set the status as running
-            Status = RUNNING;
+            if (((buf >> 32) == 0) && (DmaStatus == EMBRYO))
+            {
+                // This is a start request
+                currentTime = processStartRequest(buf);
+                // Send the current time to the server
+                sendToServer(clientSock, currentTime);
+                // Set the status as running
+                DmaStatus = RUNNING;
+            }
+            else if (((buf >> 32) == 1) && (DmaStatus == RUNNING))
+            {
+                // This is a stop request
+                processStopRequest();
+                // Send stopped message to server
+                sendToServer(clientSock, 0x0000000000000001); // 1 = ACK
+                // Set the status as EMBRYO again
+                DmaStatus = EMBRYO;
+            }
         }
-        else if (((buf >> 32) == 1) && (Status == RUNNING))
+        else
         {
-            // This is a stop request
-            processStopRequest();
-            // Send stopped message to server
-            sendToServer(clientSock, 0x0000000000000001); // 1 = ACK
-            // Set the status as EMBRYO again
-            Status = EMBRYO;
+            // Server disconnected... reconnect
+            clientSock = -1;
+            while (clientSock < 0)
+            {
+                clientSock = setupConnection();
+            }
+            DmaStatus = EMBRYO;
         }
     }
 
