@@ -2,7 +2,7 @@ import socket
 import numpy
 from control_signals_pb2 import *
 
-serverName = '10.42.0.2'
+serverName = '10.110.40.50'
 serverPort = 10002
 dataSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 dataSocket.connect((serverName, serverPort))
