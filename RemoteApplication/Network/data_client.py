@@ -7,7 +7,7 @@ import Queue # just needed for the Empty exception
 
 
 class DataClient():
-    def __init__(self, host, port, storage_sender, gui_data_sender, active_channels):
+    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_cond, readings_to_be_plotted_cond):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -18,7 +18,14 @@ class DataClient():
         self.gui_data_sender = gui_data_sender
 
         # list of channel strings (e.g. '0.0')
-        self.active_channels = active_channels
+        self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
+                                '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
+                                '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
+                                '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
+
+        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+
+        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
 
         # pipe for passing full readings (bytearray) from socket listener to sync verification filter
         self.fast_path_receiver, self.fast_path_sender = mp.Pipe(duplex=False)
@@ -43,13 +50,14 @@ class DataClient():
         self.parser_thread = threading.Thread(target=self.parse_readings, args=[self.recv_stop_event])
         self.parser_thread.daemon = True
 
-        self.host = host
-        self.port = port
         self.connected = False
         self.synchronized = False
         self.synchronized_lock = threading.Lock()
 
         self.chunk_size = 20
+
+        # how many bytes are in self.chunk_size readings, including DEADs and timestamps
+        self.chunk_byte_length = (len(self.active_channels) + 4) * 2 * self.chunk_size
 
         # for testing purposes only
         self.bytes_received = 0
@@ -65,6 +73,10 @@ class DataClient():
 
     def stop_data_threads(self):
         self.recv_stop_event.set()
+        self.receiver_thread.join()
+        self.sync_verification_thread.join()
+        self.parser_thread.join()
+        return True
 
     def start_sync_verification_thread(self):
         self.sync_verification_thread.start()
@@ -73,22 +85,45 @@ class DataClient():
         self.parser_thread.start()
 
     def update_active_channels(self, active_channels):
-        self.active_channels = active_channels
-        # print 'ACTIVE CHANNELS: %s' % self.active_channels
+        self.active_channels = self.get_channels_from_bitmask(active_channels)
+        self.chunk_byte_length = (len(self.active_channels) + 4) * 2 * self.chunk_size
 
-    def connect_data_port(self):
-        # print 'DataClient: attempting connection'
-        self.sock.connect((self.host, self.port))
+    def get_channels_from_bitmask(self, bitmask):
+        active_channels = []
+        num_ADCs = 4
+        num_channels_per_ADC = 8
+        for adc in range(num_ADCs):
+            for channel in range(num_channels_per_ADC):
+                active = np.bitwise_and(np.left_shift(0x01, adc * num_channels_per_ADC + channel), bitmask)
+                if active > 0:
+                    active_channels.append(str(adc) + '.' + str(channel))
+        return active_channels
+
+    def connect_data_port(self, host, port):
+        print 'DataClient: attempting connection on %s:%d' % (host, port)
+        try:
+            self.sock.connect((host, port))
+        except Exception, e:
+            print 'DataClient: failed to connect to host, exception is %s' % e
+            return False
+
+        self.connected = True
+
+        print 'DataClient: starting data threads'
         self.start_receiver_thread()
         self.start_sync_verification_thread()
         self.start_parser_thread()
-        self.connected = True
+
+        print 'DataClient.connected = %s' % self.connected
+
+        return self.connected
 
     def close_data_port(self):
-        # print 'DataClient: close_control_port()'
+        print 'DataClient: close_control_port()'
         self.connected = False
-        self.stop_data_threads()
+        data_threads_stopped = self.stop_data_threads()
         self.sock.close()
+        return data_threads_stopped
 
     def receive_data(self, *args):
         stop_event = args[0]
@@ -114,14 +149,16 @@ class DataClient():
             if in_sync:
                 # create a buffer to store DEAD, TS, and all channel values
                 # if we didn't receive a full reading last time, subtract the carryover length from the total
-                reading_buffer = bytearray((len(self.active_channels) + 4) * 2 * self.chunk_size - len(carryover_buffer))
+                reading_buffer = bytearray(self.chunk_byte_length - len(carryover_buffer))
 
                 # check to see if there is data available before calling recv_into() so we don't hang
                 readable, writable, exceptional = select.select([self.sock], [], [], 1)
                 if self.sock in readable:
-                    self.sock.recv_into(reading_buffer)
+                    bytes_recv = self.sock.recv_into(reading_buffer)
+                    print 'DataClient: received %d bytes' % bytes_recv
+                    print 'DataClient: reading_buffer = %d' % reading_buffer[0]
                     reading_buffer = carryover_buffer + reading_buffer
-                    assert len(reading_buffer) == (len(self.active_channels) + 4) * 2 * self.chunk_size
+                    assert len(reading_buffer) == self.chunk_byte_length
 
                 if reading_buffer[-1] != 0:
                     bytes_received += len(reading_buffer)
@@ -183,6 +220,7 @@ class DataClient():
 
                         # merge the two byte strings and convert to an integer
                         value = int(byte1_enc + byte2_enc, 16)
+                        print 'DataClient: received value %d' % value
                         #             # print 'bytes: %s, %s' % (byte1_enc, byte2_enc)
 
                         if value == 57005:
@@ -249,7 +287,7 @@ class DataClient():
 
             if self.fast_path_receiver.poll():
                 reading = self.fast_path_receiver.recv()
-                assert len(reading) == (len(self.active_channels) + 4) * 2 * self.chunk_size
+                assert len(reading) == self.chunk_byte_length
                 if reading[0] == 173 and reading[1] == 222: # 173 == 0xAD, 222 == 0xDE
                     # all good, found DEAD where we expected
                     self.pipeline_sender.send(reading)
@@ -288,7 +326,7 @@ class DataClient():
                 continue
 
             # make sure we have the proper number of data points
-            assert len(raw_reading) == (len(self.active_channels) + 4) * 2 * self.chunk_size
+            assert len(raw_reading) == self.chunk_byte_length
 
             for n in range(self.chunk_size):
                 start_index = n * (len(self.active_channels) + 4) * 2
@@ -315,5 +353,8 @@ class DataClient():
 
                 # pass the reading along to the other components
                 #TODO: uncomment these when the other sides are ready to receive
+
                 # self.gui_data_sender.send(reading)
+                # self.readings_to_be_plotted_cond.notify()
                 # self.storage_sender.send(reading)
+                # self.reading_to_be_stored_cond.notify()

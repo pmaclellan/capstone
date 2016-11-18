@@ -3,7 +3,7 @@ import numpy
 import time
 from control_signals_pb2 import *
 
-serverName = '10.42.0.2'
+serverName = '10.110.40.50'
 serverPort = 10001
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientSocket.connect((serverName, serverPort))
@@ -31,7 +31,7 @@ size = '{:08b}'.format(rawsize[0])
 hello, addr = clientSocket.recvfrom(int(size))
 wrapper.ParseFromString(hello)
 print("received wrapper with port={0} and channels={1}".format(wrapper.start.port, wrapper.start.channels))
-time.sleep(10000)
+time.sleep(5)
 
 stop = RequestWrapper()
 stop.sequence = 2
@@ -41,3 +41,12 @@ sendsize = numpy.uint16(len(stop.SerializeToString()))
 clientSocket.send(sendsize)
 print("sending stop request")
 clientSocket.send(stop.SerializeToString())
+rawsize = bytearray(2)
+clientSocket.recv_into(rawsize)
+size = '{:08b}'.format(rawsize[0])
+print("received size")
+stopper, addr = clientSocket.recvfrom(int(size))
+stop.ParseFromString(stopper)
+print("received stop with port={0} and channels={1}".format(stop.stop.port, stop.stop.channels))
+
+clientSocket.close()

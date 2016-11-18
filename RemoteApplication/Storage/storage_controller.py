@@ -5,39 +5,79 @@ import multiprocessing as mp
 import time
 import os.path
 
-class StorageController():
-    def __init__(self, storage_receiver, reading_to_be_stored_cond):
-        print 'StorageController __init()'
-        # Pipe connection object that will contain parsed ADC data readings (numpy arrays)
+class StorageController(mp.Process):
+    def __init__(self, storage_receiver, filepath_receiver, reading_to_be_stored_cond, filepath_available_cond):
+        super(StorageController, self).__init__()
+
+        # mp.Connection for receiving raw ADC data readings (bytearray from NC.DC)
         self.storage_receiver = storage_receiver
+
+        # mp.Connection for receiving directory (from GUI) to write files to
+        self.filepath_receiver = filepath_receiver
+
+        # mp.Condition variable to wait on for new readings to be available
+        self.reading_to_be_stored_cond = reading_to_be_stored_cond
+
+        # mp.Condition variable to wait on for new directory to write files to to be available
+        self.filepath_available_cond = filepath_available_cond
 
         # Pipe for passing data internally
         self.from_reader, self.to_writer = mp.Pipe(duplex=False)
 
         # Create worker threads
         self.reader_thread = threading.Thread(target=self.grabbuffer)
-        self.writer_thread = threading.Thread(target=self.writefiles)
+        self.writer_thread = threading.Thread(target=self.write_binary_files)
+        self.filepath_listener_thread = threading.Thread(target=self.listen_for_filepath_update)
 
         self.stop_event = threading.Event()
 
-        self.reading_to_be_stored_cond = reading_to_be_stored_cond
-        self.file_writer_done_cond = threading.Condition()
-
         # start_time will hold the Unix time to add to each reading's timestamp offset
+        # will be set upon receiving a start message from NC upon successful NC.CC connection
         self.start_time = 0
+
+        # filepath is the absolute directory path to write files to
+        self.filepath = ''
+
+        # Lock for filepath
+        self.filepath_lock = threading.Lock()
 
         # for testing purposes only
         self.expected_records = 99999999
+        self.file_writer_done_cond = threading.Condition()
 
-    def start(self, start_time):
-        self.start_time = start_time
+    def run(self):
         self.reader_thread.start()
         self.writer_thread.start()
+        self.filepath_listener_thread.start()
+        self.writer_thread.join()
 
-    def stop(self):
+    # TODO: call upon successful DataClient connection
+    # def start_storage_controller(self, start_time):
+    #     self.start_time = start_time
+    #     self.reader_thread.start()
+    #     self.writer_thread.start()
+    #     self.filepath_listener_thread.start()
+
+    def stop_storage_controller(self):
         self.stop_event.set()
 
-    def writefiles(self):
+    def listen_for_filepath_update(self):
+        while not self.stop_event.is_set():
+            if self.filepath_receiver.poll():
+                with self.filepath_lock:
+                    self.filepath = self.filepath_receiver.recv()
+                print 'StorageController: updated filepath to %s' % self.filepath
+                # TODO: input validation
+            else:
+                with self.filepath_available_cond:
+                    self.filepath_available_cond.wait()
+
+    def write_binary_files(self):
+        print 'write_binary_files() not implemented'
+        while True:
+            continue
+
+    def writeHDF5files(self):
         timeout_threshold = 100000
         filesize_threshold = 512000
         chunk_size = 200
