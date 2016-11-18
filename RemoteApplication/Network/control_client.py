@@ -1,12 +1,14 @@
+import control_signals_pb2
+
 import socket
 import multiprocessing as mp
 import numpy as np
 import asyncore
 import sys
-import control_signals_pb2
+import logging
 
 class ControlClient(asyncore.dispatcher):
-    def __init__(self, control_protobuf_conn, ack_msg_from_cc_cond, connected_event, disconnected_event):
+    def __init__(self, control_protobuf_conn, ack_msg_from_cc_event, connected_event, disconnected_event):
         asyncore.dispatcher.__init__(self)
 
         # initialize TCP socket
@@ -17,7 +19,7 @@ class ControlClient(asyncore.dispatcher):
         self.control_protobuf_conn = control_protobuf_conn
 
         # threading.Condition variable to notify NetworkController when an ACK has been sent back up
-        self.ack_msg_from_cc_cond = ack_msg_from_cc_cond
+        self.ack_msg_from_cc_event = ack_msg_from_cc_event
 
         # threading.Event variable for notifying NetworkController that we have connected to server (async)
         self.connected_event = connected_event
@@ -33,20 +35,20 @@ class ControlClient(asyncore.dispatcher):
         self.connected = False
 
     def connect_control_port(self, host, port):
-        print 'ControlClient: attempting connection'
+        logging.info('ControlClient: attempting connection to %s:%d', host, port)
         self.connect((host, port))
         self.connected = True
 
     def close_control_port(self):
-        print 'ControlClient: close_control_port()'
+        logging.debug('ControlClient: close_control_port() entered')
         self.connected = False
-        self.close()
+        self.handle_close()
 
     def handle_connect(self):
-        print 'ControlClient: handle_connect() entered'
+        logging.debug('ControlClient: handle_connect() entered')
 
     def handle_close(self):
-        print 'ControlClient: handle_close() entered'
+        logging.debug('ControlClient: handle_close() entered')
         self.connected = False
         self.close()
         self.disconnected_event.set()
@@ -57,11 +59,11 @@ class ControlClient(asyncore.dispatcher):
         # TODO: wrap in try/except and handle Connection Refused socket.error
         self.recv_into(size)
         length = size[0]
-        print 'ControlClient: received length header: %s' % length
+        logging.debug('ControlClient: received length header: %s', length)
 
         # read the message content
         msg = self.recv(int(length))
-        print 'ControlClient: received message: %s' % msg
+        logging.debug('ControlClient: received message: %s', msg)
 
         # TODO: (probably not necessary) put onto incoming_queue and have another thread handle the parsing
 
@@ -73,10 +75,9 @@ class ControlClient(asyncore.dispatcher):
 
         if sequence in self.sent_dict.keys():
             serialized_acked_request = self.sent_dict.pop(sequence)
-            print 'ControlClient: ACKed request popped %s' % serialized_acked_request
+            logging.debug('ControlClient: ACKed request popped %s', serialized_acked_request)
             self.control_protobuf_conn.send(serialized_acked_request)
-            with self.ack_msg_from_cc_cond:
-                self.ack_msg_from_cc_cond.notify()
+            self.ack_msg_from_cc_event.set()
 
     def readable(self):
         return True
@@ -92,21 +93,21 @@ class ControlClient(asyncore.dispatcher):
 
         # grab request to be sent from the incoming connection
         serialized_req_wrap = self.control_protobuf_conn.recv()
-        print 'ControlClient: handle_write() retrieved msg from outgoing queue'
+        logging.debug('ControlClient: handle_write() retrieved msg from outgoing queue')
 
         # parse the request for storage in sent_dict
         request_wrapper = control_signals_pb2.RequestWrapper()
         request_wrapper.ParseFromString(serialized_req_wrap)
 
         length = np.uint16(len(serialized_req_wrap))
-        print 'ControlClient: sending message length over control socket'
+        logging.debug('ControlClient: sending message length %d over control socket', length)
         self.send(length)
 
-        print 'ControlClient: sending Request message over control socket'
+        logging.debug('ControlClient: sending Request message over control socket')
         sent = self.send(serialized_req_wrap)
-        print 'ControlClient: sent message bytes: %d' % sent
+        logging.debug('ControlClient: sent message bytes: %d', sent)
 
-        print 'ControlClient: adding request %d to sent_dict' % request_wrapper.sequence
+        logging.debug('ControlClient: adding request %d to sent_dict', request_wrapper.sequence)
         if request_wrapper.sequence not in self.sent_dict.keys():
             self.sent_dict[request_wrapper.sequence] = serialized_req_wrap
         else:

@@ -4,10 +4,11 @@ import multiprocessing as mp
 import numpy as np
 import threading
 import Queue # just needed for the Empty exception
+import logging
 
 
 class DataClient():
-    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_event, readings_to_be_plotted_cond):
+    def __init__(self, storage_sender, gui_data_sender, reading_to_be_stored_event, readings_to_be_plotted_event):
         # initialize TCP socket
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -25,7 +26,7 @@ class DataClient():
 
         self.reading_to_be_stored_event = reading_to_be_stored_event
 
-        self.readings_to_be_plotted_cond = readings_to_be_plotted_cond
+        self.readings_to_be_plotted_event = readings_to_be_plotted_event
 
         # pipe for passing full readings (bytearray) from socket listener to sync verification filter
         self.fast_path_receiver, self.fast_path_sender = mp.Pipe(duplex=False)
@@ -38,7 +39,7 @@ class DataClient():
         self.sync_filter_done_cond = threading.Condition()
         self.parser_done_cond = threading.Condition()
         self.reading_available_to_parse_cond = threading.Condition()
-        self.frame_to_be_verified_cond = threading.Condition()
+        self.frame_to_be_verified_event = threading.Event()
 
         self.recv_stop_event = threading.Event()
 
@@ -86,6 +87,7 @@ class DataClient():
 
     def update_active_channels(self, active_channels):
         self.active_channels = self.get_channels_from_bitmask(active_channels)
+        logging.debug('DataClient: active channels updated \n%s', self.active_channels)
         self.chunk_byte_length = (len(self.active_channels) + 4) * 2 * self.chunk_size
 
     def get_channels_from_bitmask(self, bitmask):
@@ -100,29 +102,28 @@ class DataClient():
         return active_channels
 
     def connect_data_port(self, host, port):
-        print 'DataClient: attempting connection on %s:%d' % (host, port)
+        logging.info('DataClient: attempting connection on %s:%d', host, port)
         try:
             self.sock.connect((host, port))
         except Exception, e:
-            print 'DataClient: failed to connect to host, exception is %s' % e
+            logging.warning('DataClient: failed to connect to host, exception is %s', e)
             return False
 
         self.connected = True
 
-        print 'DataClient: starting data threads'
+        logging.debug('DataClient: starting data threads')
         self.start_receiver_thread()
         self.start_sync_verification_thread()
         # self.start_parser_thread()
-
-        print 'DataClient.connected = %s' % self.connected
-
         return self.connected
 
     def close_data_port(self):
-        print 'DataClient: close_control_port()'
+        logging.debug('DataClient: close_control_port() entered')
         self.connected = False
         data_threads_stopped = self.stop_data_threads()
+        logging.info('DataClient: all threads terminated successfully')
         self.sock.close()
+        logging.info('DataClient: data socket closed')
         return data_threads_stopped
 
     def receive_data(self, *args):
@@ -134,7 +135,6 @@ class DataClient():
         bytes_received = 0
 
         while not stop_event.is_set():
-            # print 'Receiver: bytes_received = %d' % bytes_received
             # for testing purposes only
             # TODO: remove in production version so we're not waiting to acquire this lock
             with self.expected_bytes_sent_lock:
@@ -154,8 +154,6 @@ class DataClient():
                 if self.sock in readable:
                     bytes_recv = self.sock.recv_into(reading_buffer)
                     bytes_received += bytes_recv
-                    # print 'DataClient: received %d bytes' % bytes_recv
-                    # print 'DataClient: reading_buffer = %d' % reading_buffer[0]
                     reading_buffer = carryover_buffer + reading_buffer[:bytes_recv]
                     if len(reading_buffer) < self.chunk_byte_length:
                         carryover_buffer = reading_buffer
@@ -163,13 +161,14 @@ class DataClient():
                         self.fast_path_sender.send(reading_buffer)
                         carryover_buffer = bytearray(0)
                         # notify sync verification thread that it has work to do
-                        with self.frame_to_be_verified_cond:
-                            self.frame_to_be_verified_cond.notify()
+                        self.frame_to_be_verified_event.set()
 
             else:
-                # print 'out of sync'
+                logging.debug('DataClient: out of sync, attempting to re-establish syncronization')
                 with self.synchronized_lock:
                     while not self.synchronized:
+                        if stop_event.is_set():
+                            break
                         with self.expected_bytes_sent_lock:
                             if bytes_received >= self.expected_bytes_sent:
                                 self.receiver_done_event.set()
@@ -210,12 +209,9 @@ class DataClient():
 
                         # merge the two byte strings and convert to an integer
                         value = int(byte1_enc + byte2_enc, 16)
-                        # print 'DataClient: received value %d' % value
 
                         if value == 57005:
                             # we found a DEAD, let's see if it aligns with a previous DEAD
-                            # print 'DEAD found, temp_buffer length is %d' % len(temp_buffer)
-                            # we need to use '+ 4' here because the timestamp hasn't been recognized yet
                             if len(temp_buffer) >= (n + 4) and temp_buffer[-1 * (n + 4)] == 57005:  # 0xDEAD
                                 self.synchronized = True
 
@@ -235,14 +231,13 @@ class DataClient():
                                 continue
                             else:
                                 # not in sync yet, store in buffer
-                                # print 'no previous DEAD found, continuing...'
                                 temp_buffer.append(value)
                                 continue
 
                         elif byte2_enc == 'de':
                             if temp_byte == 'ad':  # where temp_byte is the byte1_enc from the prev iteration
                                 # we found a DEAD, but we're misaligned by one byte
-                                # print 'misaligned DEAD detected, attempting recovery'
+                                logging.debug('misaligned DEAD detected, attempting recovery')
                                 # reconstruct binary string with the DEAD together
                                 value = int(byte2_enc + temp_byte, base=16)
                                 temp_buffer = [value]
@@ -260,7 +255,8 @@ class DataClient():
                             # but wait, let's save byte1 in case we're off by one...
                             temp_byte = byte1_enc
                             continue
-                # print 'Recovery complete, back in sync! bytes_received = %d' % bytes_received
+                logging.debug('Recovery complete, back in sync! bytes_received = %d', bytes_received)
+        logging.info('DataClient: receiver thread terminated, received %d bytes', bytes_received)
 
 
     def verify_synchronization(self, *args):
@@ -285,8 +281,7 @@ class DataClient():
                     self.storage_sender.send(reading)
                     # notify the gui and storage controller that they have work to do
                     self.reading_to_be_stored_event.set()
-                    with self.readings_to_be_plotted_cond:
-                        self.readings_to_be_plotted_cond.notify()
+                    self.readings_to_be_plotted_event.set()
                     # for testing purposes only
                     readings_verified += 1
                 else:
@@ -294,61 +289,63 @@ class DataClient():
                         self.synchronized = False
             else:
                 # nothing to read yet
-                with self.frame_to_be_verified_cond:
-                    self.frame_to_be_verified_cond.wait()
-                continue
+                while not stop_event.is_set():
+                    if self.frame_to_be_verified_event.wait(0.1):
+                        self.frame_to_be_verified_event.clear()
+                        break
+        logging.debug('DataClient: Sync verification thread terminating, %d readings verified', readings_verified)
 
     # Parser is in charge of transforming the list output from the Sync and Recovery
     # stage into a NumPy array for use in the GUI and StorageController
-    def parse_readings(self, *args):
-        stop_event = args[0]
-        readings_parsed = 0
-
-        while not stop_event.is_set():
-            # for testing purposes only
-            with self.expected_readings_parsed_lock:
-                if readings_parsed >= self.expected_readings_parsed:
-                    with self.parser_done_cond:
-                        self.parser_done_cond.notify()
-
-            # check that there is a reading to receive
-            if self.pipeline_receiver.poll():
-                raw_reading = self.pipeline_receiver.recv()
-            else:
-                with self.reading_available_to_parse_cond:
-                    self.reading_available_to_parse_cond.wait()
-                continue
-
-            # make sure we have the proper number of data points
-            assert len(raw_reading) == self.chunk_byte_length
-
-            for n in range(self.chunk_size):
-                start_index = n * (len(self.active_channels) + 4) * 2
-                end_index = (n+1) * (len(self.active_channels) + 4) * 2
-                one_reading = raw_reading[start_index:end_index]
-                # extract the 48-bit timestamp value
-                timestamp = (one_reading[7] << 40) + (one_reading[6] << 32) + (one_reading[5] << 24) + \
-                            (one_reading[4] << 16) + (one_reading[3] << 8) + one_reading[2]
-
-                # start building the list that will be converted to a numpy array later
-                intermediate = [('_TS', timestamp)]
-
-                # trim DEAD and timestamp from the reading
-                one_reading = one_reading[8:]
-
-                # construct tuple for each reading e.g. ('0.0', 43125) and add to list
-                for i in range(0, len(one_reading), 2):
-                    intermediate.append((self.active_channels[i/2], (one_reading[i + 1] << 8) + one_reading[i]))
-
-                # create numpy array from list for passing to storage
-                reading = np.array(intermediate, dtype=[('channel', 'S3'), ('value', 'uint64')])
-
-                readings_parsed += 1
-
-                # pass the reading along to the other components
-                #TODO: uncomment these when the other sides are ready to receive
-
-                # self.gui_data_sender.send(reading)
-                # self.readings_to_be_plotted_cond.notify()
-                # self.storage_sender.send(reading)
-                # self.reading_to_be_stored_cond.notify()
+    # def parse_readings(self, *args):
+    #     stop_event = args[0]
+    #     readings_parsed = 0
+    #
+    #     while not stop_event.is_set():
+    #         # for testing purposes only
+    #         with self.expected_readings_parsed_lock:
+    #             if readings_parsed >= self.expected_readings_parsed:
+    #                 with self.parser_done_cond:
+    #                     self.parser_done_cond.notify()
+    #
+    #         # check that there is a reading to receive
+    #         if self.pipeline_receiver.poll():
+    #             raw_reading = self.pipeline_receiver.recv()
+    #         else:
+    #             with self.reading_available_to_parse_cond:
+    #                 self.reading_available_to_parse_cond.wait()
+    #             continue
+    #
+    #         # make sure we have the proper number of data points
+    #         assert len(raw_reading) == self.chunk_byte_length
+    #
+    #         for n in range(self.chunk_size):
+    #             start_index = n * (len(self.active_channels) + 4) * 2
+    #             end_index = (n+1) * (len(self.active_channels) + 4) * 2
+    #             one_reading = raw_reading[start_index:end_index]
+    #             # extract the 48-bit timestamp value
+    #             timestamp = (one_reading[7] << 40) + (one_reading[6] << 32) + (one_reading[5] << 24) + \
+    #                         (one_reading[4] << 16) + (one_reading[3] << 8) + one_reading[2]
+    #
+    #             # start building the list that will be converted to a numpy array later
+    #             intermediate = [('_TS', timestamp)]
+    #
+    #             # trim DEAD and timestamp from the reading
+    #             one_reading = one_reading[8:]
+    #
+    #             # construct tuple for each reading e.g. ('0.0', 43125) and add to list
+    #             for i in range(0, len(one_reading), 2):
+    #                 intermediate.append((self.active_channels[i/2], (one_reading[i + 1] << 8) + one_reading[i]))
+    #
+    #             # create numpy array from list for passing to storage
+    #             reading = np.array(intermediate, dtype=[('channel', 'S3'), ('value', 'uint64')])
+    #
+    #             readings_parsed += 1
+    #
+    #             # pass the reading along to the other components
+    #             #TODO: uncomment these when the other sides are ready to receive
+    #
+    #             # self.gui_data_sender.send(reading)
+    #             # self.readings_to_be_plotted_event.notify()
+    #             # self.storage_sender.send(reading)
+    #             # self.reading_to_be_stored_cond.notify()
