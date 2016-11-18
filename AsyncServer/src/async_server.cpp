@@ -138,7 +138,7 @@ void *control_task(void *dummy)
         {
             error("ERROR acception failure");
         }
-        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+        printf("Server got connection from control client %s\n", inet_ntoa(dest.sin_addr));
 
         while(1)
         {
@@ -332,7 +332,8 @@ void *data_task(void *dummy)
         {
             error("ERROR acception failure");
         }
-        printf("Server got connection from client %s\n", inet_ntoa(dest.sin_addr));
+        printf("Server got connection from data client %s\n", inet_ntoa(dest.sin_addr));
+        connection_status = true;
 
         while(1)
         {
