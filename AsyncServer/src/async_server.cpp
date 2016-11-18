@@ -42,7 +42,6 @@ int client_fd[2], socket_fd[2], socket_control;
 int adc_channels[NUM_CHANNELS];
 int numChannels;
 bool read_data;
-socklen_t size;
 
 RequestWrapper request_wrapper = RequestWrapper();
 StartRequest start_request = StartRequest();
@@ -85,6 +84,7 @@ void *control_task(void *)
 {
     int yes = 1;
     struct sockaddr_in server, dest;
+    socklen_t size;
 
     // Set up socket 0 for control data
     if((socket_fd[0] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -270,6 +270,7 @@ void *data_task(void *)
 {
     int yes = 1;
     struct sockaddr_in server, dest;
+    socklen_t size;
 
     // Set up socket 1 for signal data
     if((socket_fd[1] = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -290,52 +291,11 @@ void *data_task(void *)
         error("ERROR binding failure");
     }
 
-    // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
-    // configure. This is a bug but we'll hack it here and disregard the last 2
-    // packets.
-
-    // Create a buffer to put our DMA data into:
-    //      size = (NUM_PACKETS + 2) x (LINES_PER_PACKET) x (8 bytes / line)
-    //      Note: Conceptually, a line is 8 bytes. However for the purposes of
-    //      only sending active channels, the array of data is broken down into
-    //      uint16_t
-    uint16_t * buf;
-    size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
-//    int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] =
-//    { -1 };
-    printf("data");
-    buf = static_cast<uint16_t *>(malloc(bufSize));
-    for (int i = 0; i < bufSize; i++)
-    {
-        buf[i] = i;
-    }
-    // Get indexes for the start of every packet*/
-    int activeCount = 0;
-/*    // Loop through every packet
-    for(int i = 0; i < NUM_PACKETS; i++)
-    {
-        int packetIndex = i * LINES_PER_PACKET * 4;
-        // Add the 0xDEAD and the timestamp to the active indexes
-        for(int j = 0; j < sizeof(uint64_t); j++)
-        {
-            activeChannels[activeCount] = packetIndex + j;
-            activeCount++;
-        }
-        // Loop through the channels in that packet
-        for(int channel = 0; channel < NUM_CHANNELS; channel++)
-        {
-            if(adc_channels[channel] == 1)
-            {
-                activeChannels[activeCount] = packetIndex + sizeof(uint64_t)
-                        + channel;
-                activeCount++;
-            }
-        }
-    }
-*/
+    
     // Open the DMA
     int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
     printf("Opened DMA driver...\n");
+    uint16_t * buf;
     int sendcheck;
     bool connection_status;
     while(1)
@@ -353,6 +313,45 @@ void *data_task(void *)
         printf("Server got connection from data client %s\n", inet_ntoa(dest.sin_addr));
         connection_status = true;
 
+        // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
+        // configure. This is a bug but we'll hack it here and disregard the last 2
+        // packets.
+
+        // Create a buffer to put our DMA data into:
+        //      size = (NUM_PACKETS + 2) x (LINES_PER_PACKET) x (8 bytes / line)
+        //      Note: Conceptually, a line is 8 bytes. However for the purposes of
+        //      only sending active channels, the array of data is broken down into
+        //      uint16_t
+        size_t bufSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
+//        int activeChannels[NUM_PACKETS * LINES_PER_PACKET * sizeof(uint16_t)] = { -1 };
+        buf = static_cast<uint16_t *>(malloc(bufSize));
+        for (int i = 0; i < bufSize; i++)
+        {
+            buf[i] = i;
+        }
+/*        // Get indexes for the start of every packet
+        int activeCount = 0;
+        // Loop through every packet
+        for(int i = 0; i < NUM_PACKETS; i++)
+        {
+            int packetIndex = i * LINES_PER_PACKET * 4;
+            // Add the 0xDEAD and the timestamp to the active indexes
+            for(int j = 0; j < sizeof(uint64_t); j++)
+            {
+                activeChannels[activeCount] = packetIndex + j;
+                activeCount++;
+            }
+            // Loop through the channels in that packet
+            for(int channel = 0; channel < NUM_CHANNELS; channel++)
+            {
+                if(adc_channels[channel] == 1)
+                {
+                    activeChannels[activeCount] = packetIndex + sizeof(uint64_t) + channel;
+                    activeCount++;
+                }
+            }
+        }
+*/
         while(1)
         {
             // Read some data from the DMA
@@ -381,7 +380,7 @@ void *data_task(void *)
                 }
             }
             
-/*            for(int i = 0; i < activeCount; i++)
+            /*for(int i = 0; i < activeCount; i++)
             {
                 if (activeChannels[i] != -1)
                 {
@@ -391,6 +390,11 @@ void *data_task(void *)
                         // Send stop to fifo
                         uint64_t code = 0x0000000100000000;
                         send(socket_control, &code, sizeof(uint64_t), 0);
+                        
+                        // Read ack from controller
+                        uint64_t buff;
+                        recv(socket_control, &buff, sizeof(buff), 0);
+
                         connection_status = false;
                         break;
                     }
