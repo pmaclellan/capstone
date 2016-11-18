@@ -22,6 +22,7 @@
 #define BACKLOG 5
 #define SOCK_PATH "/tmp/controller.sock"
 #define NUM_CHANNELS 32
+#define MAX_SEND_SIZE 8000
 
 // DMA Data Sizes
 // TODO: These are defined both in this server and in the driver_interface...
@@ -291,7 +292,32 @@ void *data_task(void *)
         error("ERROR binding failure");
     }
 
+<<<<<<< HEAD
     
+=======
+    // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
+    // configure. This is a bug but we'll hack it here and disregard the last 2
+    // packets.
+
+    // Create a buffer to put our DMA data into:
+    //      size = (NUM_PACKETS + 2) x (LINES_PER_PACKET) x (8 bytes / line)
+    //      Note: Conceptually, a line is 8 bytes. However for the purposes of
+    //      only sending active channels, the array of data is broken down into
+    //      uint16_t
+    uint64_t * readBuf;
+    uint64_t * sendBuf;
+    size_t readSize = (NUM_PACKETS + 2) * LINES_PER_PACKET * sizeof(uint64_t);
+    size_t readFrameSize = NUM_PACKETS * LINES_PER_PACKET * sizeof(uint64_t);
+
+    // Send size should be as many frames as we can up to the max send size
+    int framesToSend = MAX_SEND_SIZE / readFrameSize;
+
+    size_t sendSize = framesToSend * readFrameSize;
+
+    readBuf = static_cast<uint64_t *>(malloc(readSize));
+    sendBuf = static_cast<uint64_t *>(malloc(sendSize));
+
+>>>>>>> f6eeab209694f5f1b347e6dac16ffc4dfc17f4bd
     // Open the DMA
     int axiDmaFd = open("/dev/axidma_RX", O_RDONLY);
     printf("Opened DMA driver...\n");
@@ -313,6 +339,7 @@ void *data_task(void *)
         printf("Server got connection from data client %s\n", inet_ntoa(dest.sin_addr));
         connection_status = true;
 
+<<<<<<< HEAD
         // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
         // configure. This is a bug but we'll hack it here and disregard the last 2
         // packets.
@@ -352,19 +379,17 @@ void *data_task(void *)
             }
         }
 */
+=======
+        bool sendFrame = false;
+        size_t sendFrameCurrentSize = 0;
+        uint64_t * sendFramePosition = sendBuf;
+>>>>>>> f6eeab209694f5f1b347e6dac16ffc4dfc17f4bd
         while(1)
         {
-            // Read some data from the DMA
-            //printf("Trying to read from the dma driver\n");
-            //printf("axidmaFd = %d, buf = %d, bufSize = %d\n", axiDmaFd, buf, bufSize);
-            read(axiDmaFd, buf, bufSize);
-            //printf("reading %d bytes\n", bufSize);
-
-            // Print the data the server has requested
-
-            for(int i = 0; i < NUM_PACKETS * LINES_PER_PACKET * 4; i++)
+            if (sendFrame)
             {
-                if ((sendcheck = send(client_fd[1], &(buf[i]), sizeof(uint16_t), 0)) < 0)
+                // Send the data
+                if (send(client_fd[1], sendBuf, sendSize, 0))
                 {
                     printf("ERROR client disconnected\n");
                     // Send stop to fifo
@@ -376,14 +401,24 @@ void *data_task(void *)
                     recv(socket_control, &buff, sizeof(buff), 0);
 
                     connection_status = false;
-                    break;
                 }
+                sendFramePosition = sendBuf; // Reset our position back to the
+                                             // beginning of the send frame
             }
+<<<<<<< HEAD
             
             /*for(int i = 0; i < activeCount; i++)
+=======
+            else
+>>>>>>> f6eeab209694f5f1b347e6dac16ffc4dfc17f4bd
             {
-                if (activeChannels[i] != -1)
+                // Keep building the send buffer
+                read(axiDmaFd, sendFramePosition, readFrameSize);
+                sendFrameCurrentSize += readFrameSize;
+                sendFramePosition += (readFrameSize / 2);
+                if (sendFrameCurrentSize == sendSize)
                 {
+<<<<<<< HEAD
                     if ((sendcheck = send(client_fd[1], &buf[activeChannels[i]], sizeof(uint16_t), 0)) < 0)
                     {
                         printf("ERROR client disconnected\n");
@@ -398,15 +433,20 @@ void *data_task(void *)
                         connection_status = false;
                         break;
                     }
+=======
+                    sendFrame = true;
+>>>>>>> f6eeab209694f5f1b347e6dac16ffc4dfc17f4bd
                 }
-            }*/
-            
-            if (!connection_status)
+            }
+
+            if(!connection_status)
+            {
                 break;
+            }
         }
     }
 
-    free(buf);
+    free (buf);
     close(axiDmaFd);
 }
 

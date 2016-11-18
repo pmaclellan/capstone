@@ -3,7 +3,7 @@ import numpy
 import time
 from control_signals_pb2 import *
 
-serverName = '10.110.40.50'
+serverName = '10.42.0.2'
 serverPort = 10001
 clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 clientSocket.connect((serverName, serverPort))
@@ -12,7 +12,7 @@ wrapper = RequestWrapper()
 wrapper.sequence = 1
 wrapper.start.port = 1
 wrapper.start.channels = 4183856184 #4294967295
-wrapper.start.rate = 100
+wrapper.start.rate = 2000
 #while(True):
 # Send size of message
 sendsize = numpy.uint16(len(wrapper.SerializeToString()))
@@ -31,7 +31,7 @@ size = '{:08b}'.format(rawsize[0])
 hello, addr = clientSocket.recvfrom(int(size))
 wrapper.ParseFromString(hello)
 print("received wrapper with port={0} and channels={1}".format(wrapper.start.port, wrapper.start.channels))
-time.sleep(5)
+time.sleep(1000000)
 
 stop = RequestWrapper()
 stop.sequence = 2

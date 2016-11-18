@@ -9,7 +9,7 @@
 #include "axi-gpio.h"
 #include "axi-dma.h"
 
-DMA_STATUS Status = UNUSED;
+DMA_STATUS DmaStatus = UNUSED;
 
 void initDMA()
 {
@@ -41,5 +41,5 @@ void stopDMA()
 {
     printf("Stopping DMA...\n");
     // Disable the ADC
-    configGpio(GPIO_ADC_EN, SIZE_ADC_EN, 0);
+    initDMA();
 }
