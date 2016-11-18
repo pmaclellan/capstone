@@ -15,6 +15,7 @@
 
 // Function prototypes
 void configGpio(int address, int size, int value);
+void readGpio(int address, int size);
 
 /*
  * GPIOs are used to configure the dma. The addresses and their
@@ -45,6 +46,7 @@ void configGpio(int address, int size, int value);
 #define SIZE_SCLK_FREQ          16
 #define SIZE_SAMPLE_FREQ        16
 #define SIZE_PACKETS_PER_FRAME  16
+#define SIZE_FIFO_COUNT         16
 #define SIZE_OVERFLOW           8
 
 #endif /* SRC_AXI_GPIO_H_ */
