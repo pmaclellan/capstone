@@ -10,7 +10,30 @@ case "$1" in
         start|"")
                 # Insert the ezdma
                 insmod /home/drivers/ezdma.ko
+
+                # Start the driver interface
+                echo -n "Starting ezdma driver interface..."
+                start-stop-daemon -S -q -m -b -p /var/run/DriverInterface --exec /home/drivers/DriverInterface
+                echo "done."
+
+                # Start the server
+                echo -n "Starting DAQuLA Server..."
+                start-stop-daemon -S -q -m -b -p /var/run/DAQuLA --exec /home/DAQuLA/DAQuLAServer
+                echo "done."
                 ;;
         stop)
+                # Stop the driver interface
+                echo -n "Stopping ezdma driver interface..."
+                start-stop-daemon -K -q -p /var/run/DriverInterface
+                echo "done."
                 ;;
+        restart)
+                $0 stop
+                sleep 1
+                $0 start
+                ;;
+        *)
+                echo "usage: $0 {start|stop|restart}"
+                ;;
+
 esac
