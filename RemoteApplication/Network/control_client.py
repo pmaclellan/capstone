@@ -59,11 +59,12 @@ class ControlClient(asyncore.dispatcher):
         size = bytearray(2)
         # TODO: wrap in try/except and handle Connection Refused socket.error
         self.recv_into(size)
-        length = size[0]
+        length = (size[1] << 8) + size[0]
+        print length
         logging.debug('ControlClient: received length header: %s', length)
 
         # read the message content
-        msg = self.recv(int(length))
+        msg = self.recv(length)
         logging.debug('ControlClient: received message: %s', msg)
 
         # TODO: (probably not necessary) put onto incoming_queue and have another thread handle the parsing
@@ -77,7 +78,7 @@ class ControlClient(asyncore.dispatcher):
         if sequence in self.sent_dict.keys():
             serialized_acked_request = self.sent_dict.pop(sequence)
             logging.debug('ControlClient: ACKed request popped %s', serialized_acked_request)
-            self.control_protobuf_conn.send(serialized_acked_request)
+            self.control_protobuf_conn.send(msg)
             self.ack_msg_from_cc_event.set()
 
     def readable(self):
