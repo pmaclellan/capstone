@@ -17,8 +17,10 @@
 #include <unistd.h>
 #include "data_task.h"
 
-DataTask::DataTask():
+DataTask::DataTask(bool * stopFlag):
     socketFd(-1),
+    clientFd(-1),
+    stopFlag(stopFlag),
     myThread(),
     NUM_PACKETS(24),
     LINES_PER_PACKET(9),
@@ -60,9 +62,8 @@ void DataTask::bindToSocket()
     }
 }
 
-int DataTask::acceptDataConnection()
+void DataTask::acceptDataConnection()
 {
-    int clientFd;
     socklen_t addressLength = sizeof(struct sockaddr);
     // Listen for data socket
     if(listen(this->socketFd, BACKLOG) < 0)
@@ -71,7 +72,7 @@ int DataTask::acceptDataConnection()
         exit(1);
     }
     printf("Listening for data connection\n");
-    if((clientFd = accept(this->socketFd, (struct sockaddr *) &this->dest,
+    if((this->clientFd = accept(this->socketFd, (struct sockaddr *) &this->dest,
             &addressLength)) < 0)
     {
         perror("Error in data task accept connection");
@@ -79,11 +80,9 @@ int DataTask::acceptDataConnection()
     }
     printf("Server got connection from data client %s\n",
             inet_ntoa(dest.sin_addr));
-
-    return clientFd;
 }
 
-void DataTask::readData(int clientFd)
+void DataTask::readData()
 {
     // Notes: The DMA will create a buffer that is 1.5 packets bigger than you
     // configure. This is a bug but we'll hack it here and disregard the last 2
@@ -109,7 +108,7 @@ void DataTask::readData(int clientFd)
     while(connectionStatus)
     {
         read(axiDmaFd, buf, readSize);
-        if(send(clientFd, buf, readSize - garbageSize, 0) < 0)
+        if(send(this->clientFd, buf, readSize - garbageSize, 0) < 0)
         {
             printf("Error data client disconnected\n");
             connectionStatus = false;
@@ -130,6 +129,12 @@ void DataTask::stopDataTask()
     pthread_join(this->myThread, NULL);
 }
 
+void DataTask::closeDataTaskConnection()
+{
+    close(this->clientFd);
+    close(this->socketFd);
+}
+
 void * DataTask::staticProcessDataTask(void * c)
 {
     ((DataTask *) c)->processDataTask();
@@ -141,7 +146,10 @@ void DataTask::processDataTask()
     // Bind the socket
     this->bindToSocket();
     // Accept a connection
-    int clientFd = this->acceptDataConnection();
+    this->acceptDataConnection();
     // Read some data
-    this->readData(clientFd);
+    this->readData();
+    // If we returned, let main know we need a restart
+    printf("Setting stop flag in data task\n");
+    (*this->stopFlag) = true;
 }

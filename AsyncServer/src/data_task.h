@@ -19,6 +19,8 @@ private:
     struct sockaddr_in server;
     struct sockaddr_in dest;
     int socketFd;
+    int clientFd;
+    bool * stopFlag;
 
     pthread_t myThread;
 
@@ -33,15 +35,16 @@ private:
     int BACKLOG;
 
     void bindToSocket();
-    int acceptDataConnection();
-    void readData(int clientFd);
+    void acceptDataConnection();
+    void readData();
 
     static void * staticProcessDataTask(void * c);
     void processDataTask();
 public:
-    DataTask();
+    DataTask(bool * stopFlag);
     void startDataTask();
     void stopDataTask();
+    void closeDataTaskConnection();
 };
 
 #endif /* SRC_DATA_TASK_H_ */
