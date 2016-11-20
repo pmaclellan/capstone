@@ -1,4 +1,6 @@
 #include <pthread.h>
+#include <unistd.h>
+#include <stdio.h>
 #include "control_signals.pb.h"
 #include "driver_interface_ipc.h"
 #include "control_task.h"
@@ -12,16 +14,38 @@ int main()
     DriverInterfaceIPC driverInterface;
     driverInterface.connectDriverInterface();
 
-    // Create a control task and and start it
-    ControlTask controlTask(&driverInterface);
-    controlTask.startControlTask();
+    while(1)
+    {
+        bool stopFlag = false;
 
-    // Create a data task and start
-    DataTask dataTask;
-    dataTask.startDataTask();
+        // Create a control task and and start it
+        ControlTask controlTask(&stopFlag, &driverInterface);
+        controlTask.startControlTask();
 
-    controlTask.stopControlTask();
-    dataTask.stopDataTask();
+        // Create a data task and start
+        DataTask dataTask(&stopFlag);
+        dataTask.startDataTask();
+
+        while(1)
+        {
+            if (stopFlag)
+            {
+                printf("Processing stop flag\n");
+                // close the ports
+                controlTask.closeControlTaskConnection();
+                dataTask.closeDataTaskConnection();
+
+                // join the threads
+                controlTask.stopControlTask();
+                dataTask.stopDataTask();
+                break;
+            }
+            else
+            {
+                sleep(1);
+            }
+        }
+    }
 
     return 0;
 }
