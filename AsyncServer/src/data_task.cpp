@@ -5,15 +5,28 @@
  *      Author: dominic
  */
 
+#include <cstdlib> // for exit... should probably get rid of this
+#include <stdio.h>
+#include <iostream>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <string.h>
+#include <arpa/inet.h> // inet_ntoa
+#include <unistd.h>
 #include "data_task.h"
 
-void DataTask::DataTask()
+DataTask::DataTask():
+    socketFd(-1),
+    myThread(),
+    NUM_PACKETS(24),
+    LINES_PER_PACKET(9),
+    MAX_SEND_SIZE(8000),
+    DATA_PORT(10002),
+    BACKLOG(5)
 {
-    // Constructor
+
 }
 
 void DataTask::bindToSocket()
@@ -121,13 +134,13 @@ void DataTask::readData(int clientFd)
             {
                 // TODO: This should happen after threads join
                 printf("Error data client disconnected\n");
-                // Send stop to fifo
-                uint64_t code = 0x0000000100000000;
-                send(socket_control, &code, sizeof(uint64_t), 0);
-
-                // Read ack from controller
-                uint64_t buff;
-                recv(socket_control, &buff, sizeof(buff), 0);
+//                // Send stop to fifo
+//                uint64_t code = 0x0000000100000000;
+//                send(socket_control, &code, sizeof(uint64_t), 0);
+//
+//                // Read ack from controller
+//                uint64_t buff;
+//                recv(socket_control, &buff, sizeof(buff), 0);
 
                 connectionStatus = false;
             }
@@ -152,7 +165,25 @@ void DataTask::readData(int clientFd)
     free(sendBuf);
 }
 
-void * DataTask::processDataTask(void *)
+void DataTask::startDataTask()
+{
+    pthread_create(&this->myThread, NULL, DataTask::staticProcessDataTask, this);
+
+    pthread_join(this->myThread, NULL);
+}
+
+void DataTask::stopDataTask()
+{
+    pthread_join(this->myThread, NULL);
+}
+
+void * DataTask::staticProcessDataTask(void * c)
+{
+    ((DataTask *) c)->processDataTask();
+    return NULL;
+}
+
+void DataTask::processDataTask()
 {
     // Bind the socket
     this->bindToSocket();
@@ -160,6 +191,4 @@ void * DataTask::processDataTask(void *)
     int clientFd = this->acceptDataConnection();
     // Read some data
     this->readData(clientFd);
-
-    return NULL;
 }

@@ -8,7 +8,9 @@
 #ifndef SRC_DATA_TASK_H_
 #define SRC_DATA_TASK_H_
 
+#include <pthread.h>
 #include <stdint.h>
+#include <netinet/in.h>
 #include <sys/socket.h>
 
 class DataTask
@@ -18,22 +20,28 @@ private:
     struct sockaddr_in dest;
     int socketFd;
 
+    pthread_t myThread;
+
     // DMA Data Sizes
     // TODO: These are defined both in this server and in the driver_interface...
     // The server really should send these values to the interface for the driver
     // to configure the DMA
-    static int NUM_PACKETS = 24;
-    static int LINES_PER_PACKET = 9;
-    static int MAX_SEND_SIZE = 8000;
-    static int DATA_PORT = 10002;
-    static int BACKLOG = 5;
+    int NUM_PACKETS;
+    int LINES_PER_PACKET;
+    int MAX_SEND_SIZE;
+    int DATA_PORT;
+    int BACKLOG;
 
     void bindToSocket();
     int acceptDataConnection();
     void readData(int clientFd);
+
+    static void * staticProcessDataTask(void * c);
+    void processDataTask();
 public:
     DataTask();
-    void * processDataTask(void *);
+    void startDataTask();
+    void stopDataTask();
 };
 
 #endif /* SRC_DATA_TASK_H_ */

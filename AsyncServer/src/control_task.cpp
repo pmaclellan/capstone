@@ -5,18 +5,29 @@
  *      Author: dominic
  */
 
+#include <pthread.h>
 #include <vector>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <netinet/in.h>
+#include <arpa/inet.h> // inet_ntoa
 #include "control_task.h"
-#include "control_signals.pb.h"
 
 int adc_channels[32];
 
 int getBit(int n, int bitNum);
 
+ControlTask::ControlTask(DriverInterfaceIPC * driverInterface):
+        socketFd(-1),
+        myThread(),
+        driverInterface(driverInterface),
+        NUM_CHANNELS(32),
+        CONTROL_PORT(10001),
+        DATA_PORT(10002),
+        BACKLOG(5)
+{
+
+}
 void ControlTask::bindToSocket()
 {
     // Create a socket
@@ -87,12 +98,7 @@ bool ControlTask::recvMessage(int clientFd)
     {
         printf("Error control task client disconnected\n");
         // Send stop to fifo
-        uint64_t stopCode = 0x0000000100000000;
-        send(socket_control, &stopCode, sizeof(uint64_t), 0);
-
-        // Read ack from controller
-        uint64_t ack;
-        recv(socket_control, &ack, sizeof(uint64_t), 0);
+        this->driverInterface->sendStop();
     }
 
     std::vector<char> buffer(messageSize);
@@ -137,12 +143,7 @@ void ControlTask::processStart(int clientFd)
     // Send sample rate to controller
     // Start code is 0, so leave the upper 32 bits as 0
     uint64_t sampleRate = static_cast<uint64_t>(startRequest.rate());
-    send(socket_control, &sampleRate, sizeof(uint64_t), 0);
-
-    // Read timestamp from controller
-    uint64_t timestamp;
-    recv(socket_control, &timestamp, sizeof(uint64_t), 0);
-    startRequest.set_timestamp(timestamp);
+    startRequest.set_timestamp(this->driverInterface->sendStart(sampleRate));
 
     // Send size of port number string over control socket
     startRequest.set_port(DATA_PORT);
@@ -154,14 +155,12 @@ void ControlTask::processStart(int clientFd)
     if(send(clientFd, &ackSize, sizeof(ackSize), 0) < 0)
     {
         perror("Error sending start request ack size in control task\n");
-        close(clientFd);
     }
     // Send port number of streaming socket over control socket
     printf("Control task sending port number %d\n", startRequest.port());
     if(send(clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
     {
         perror("Error sending start request ack in control task");
-        close(clientFd);
     }
 
     this->requestWrapper.release_start();
@@ -175,12 +174,7 @@ void ControlTask::processStop(int clientFd)
     printf("Process stop request in control task\n");
 
     // Send stop to dma controller
-    uint64_t stopCode = 0x0000000100000000;
-    send(socket_control, &stopCode, sizeof(uint64_t), 0);
-
-    // Read ack from controller
-    uint64_t ack;
-    recv(socket_control, &ack, sizeof(uint64_t), 0);
+    this->driverInterface->sendStop();
 
     // Send ack back to client
     this->requestWrapper.SerializeToString(&ackString);
@@ -189,13 +183,11 @@ void ControlTask::processStop(int clientFd)
     if(send(clientFd, &ackSize, sizeof(ackSize), 0) < 0)
     {
         perror("Error sending stop request ack size to client in control task\n");
-        close(clientFd);
     }
     printf("Sending stop\n");
     if(send(clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
     {
         perror("Sending stop request ack to client\n");
-        close(clientFd);
     }
 
     this->requestWrapper.release_stop();
@@ -209,12 +201,25 @@ void ControlTask::processSens()
     this->requestWrapper.release_sens();
 }
 
-void * ControlTask::processControlTask(void *)
+void ControlTask::startControlTask()
+{
+    pthread_create(&this->myThread, NULL, ControlTask::staticProcessControlTask, this);
+}
+
+void ControlTask::stopControlTask()
+{
+    pthread_join(this->myThread, NULL);
+}
+void * ControlTask::staticProcessControlTask(void * c)
+{
+    ((ControlTask *) c)->processControlTask();
+    return NULL;
+}
+
+void ControlTask::processControlTask()
 {
     // Bind to the socket
     this->bindToSocket();
-    // connect to the controller
-    connect_to_controller();
     // Accept the connection
     int clientFd = this->acceptControlConnection();
     // Read messages
@@ -234,8 +239,6 @@ void * ControlTask::processControlTask(void *)
             this->processSens();
         }
     }
-
-    return NULL;
 }
 
 int getBit(int n, int bitNum)
