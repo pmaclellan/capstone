@@ -18,3 +18,9 @@ void configGpio(int address, int size, int value)
     sprintf(command, "/sbin/devmem 0x%08X %d %d", address, size, value);
     system(command);
 }
+
+void readGpio(int address, int size)
+{
+    char command[100];
+    sprintf(command, "/sbin/devmem 0x%08X %d", address, size);
+}

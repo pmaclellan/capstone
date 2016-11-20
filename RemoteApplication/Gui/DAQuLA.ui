@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1177</width>
+    <width>1230</width>
     <height>969</height>
    </rect>
   </property>
@@ -30,130 +30,20 @@
    <widget class="QWidget" name="gridLayoutWidget">
     <property name="geometry">
      <rect>
-      <x>710</x>
-      <y>370</y>
-      <width>360</width>
-      <height>221</height>
+      <x>640</x>
+      <y>300</y>
+      <width>511</width>
+      <height>241</height>
      </rect>
     </property>
     <layout class="QGridLayout" name="gridLayout">
      <property name="sizeConstraint">
       <enum>QLayout::SetDefaultConstraint</enum>
      </property>
-     <item row="2" column="1">
-      <widget class="QCheckBox" name="cb_ch_1_2">
+     <item row="1" column="3">
+      <widget class="QCheckBox" name="cb_ch_3_1">
        <property name="text">
-        <string>Channel 1.2</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="0">
-      <widget class="QCheckBox" name="cb_ch_0_3">
-       <property name="text">
-        <string>Channel 0.3</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="2">
-      <widget class="QCheckBox" name="cb_ch_2_0">
-       <property name="text">
-        <string>Channel 2.0</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="7" column="0">
-      <widget class="QCheckBox" name="cb_ch_0_7">
-       <property name="text">
-        <string>Channel 0.7</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QCheckBox" name="cb_ch_1_1">
-       <property name="text">
-        <string>Channel 1.1</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0">
-      <widget class="QCheckBox" name="cb_ch_0_5">
-       <property name="text">
-        <string>Channel 0.5</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="1">
-      <widget class="QCheckBox" name="cb_ch_1_4">
-       <property name="text">
-        <string>Channel 1.4</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="2">
-      <widget class="QCheckBox" name="cb_ch_2_2">
-       <property name="text">
-        <string>Channel 2.2</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="3">
-      <widget class="QCheckBox" name="cb_ch_3_2">
-       <property name="text">
-        <string>Channel 3.2</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="0" column="3">
-      <widget class="QCheckBox" name="cb_ch_3_0">
-       <property name="text">
-        <string>Channel 3.0</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="3" column="1">
-      <widget class="QCheckBox" name="cb_ch_1_3">
-       <property name="text">
-        <string>Channel 1.3</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="2">
-      <widget class="QCheckBox" name="cb_ch_2_5">
-       <property name="text">
-        <string>Channel 2.5</string>
+        <string>Ch 3.1</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -163,47 +53,7 @@
      <item row="0" column="0">
       <widget class="QCheckBox" name="cb_ch_0_0">
        <property name="text">
-        <string>Channel 0.0</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="3">
-      <widget class="QCheckBox" name="cb_ch_3_1">
-       <property name="text">
-        <string>Channel 3.1</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="2">
-      <widget class="QCheckBox" name="cb_ch_2_1">
-       <property name="text">
-        <string>Channel 2.1</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="2">
-      <widget class="QCheckBox" name="cb_ch_2_6">
-       <property name="text">
-        <string>Channel 2.6</string>
-       </property>
-       <property name="checked">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item row="6" column="1">
-      <widget class="QCheckBox" name="cb_ch_1_6">
-       <property name="text">
-        <string>Channel 1.6</string>
+        <string>Ch 0.0</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -213,7 +63,157 @@
      <item row="1" column="0">
       <widget class="QCheckBox" name="cb_ch_0_1">
        <property name="text">
-        <string>Channel 0.1</string>
+        <string>Ch 0.1</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="1">
+      <widget class="QCheckBox" name="cb_ch_1_6">
+       <property name="text">
+        <string>Ch 1.6</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="6" column="2">
+      <widget class="QCheckBox" name="cb_ch_2_6">
+       <property name="text">
+        <string>Chl 2.6</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="2">
+      <widget class="QCheckBox" name="cb_ch_2_1">
+       <property name="text">
+        <string>Ch 2.1</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="2">
+      <widget class="QCheckBox" name="cb_ch_2_5">
+       <property name="text">
+        <string>Ch 2.5</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="1">
+      <widget class="QCheckBox" name="cb_ch_1_3">
+       <property name="text">
+        <string>Chl 1.3</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="3">
+      <widget class="QCheckBox" name="cb_ch_3_0">
+       <property name="text">
+        <string>Chl 3.0</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="3">
+      <widget class="QCheckBox" name="cb_ch_3_2">
+       <property name="text">
+        <string>Ch 3.2</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="2">
+      <widget class="QCheckBox" name="cb_ch_2_2">
+       <property name="text">
+        <string>Ch 2.2</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="1">
+      <widget class="QCheckBox" name="cb_ch_1_4">
+       <property name="text">
+        <string>Chl 1.4</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0">
+      <widget class="QCheckBox" name="cb_ch_0_5">
+       <property name="text">
+        <string>Ch 0.5</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="1" column="1">
+      <widget class="QCheckBox" name="cb_ch_1_1">
+       <property name="text">
+        <string>Chl 1.1</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="7" column="0">
+      <widget class="QCheckBox" name="cb_ch_0_7">
+       <property name="text">
+        <string>Ch 0.7</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="2">
+      <widget class="QCheckBox" name="cb_ch_2_0">
+       <property name="text">
+        <string>Ch 2.0</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="3" column="0">
+      <widget class="QCheckBox" name="cb_ch_0_3">
+       <property name="text">
+        <string>Ch 0.3</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="1">
+      <widget class="QCheckBox" name="cb_ch_1_2">
+       <property name="text">
+        <string>Chl 1.2</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -223,7 +223,7 @@
      <item row="7" column="2">
       <widget class="QCheckBox" name="cb_ch_2_7">
        <property name="text">
-        <string>Channel 2.7</string>
+        <string>Ch 2.7</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -233,7 +233,7 @@
      <item row="4" column="3">
       <widget class="QCheckBox" name="cb_ch_3_4">
        <property name="text">
-        <string>Channel 3.4</string>
+        <string>Ch 3.4</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -243,7 +243,7 @@
      <item row="6" column="0">
       <widget class="QCheckBox" name="cb_ch_0_6">
        <property name="text">
-        <string>Channel 0.6</string>
+        <string>Chl 0.6</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -253,7 +253,7 @@
      <item row="5" column="1">
       <widget class="QCheckBox" name="cb_ch_1_5">
        <property name="text">
-        <string>Channel 1.5</string>
+        <string>Ch 1.5</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -263,7 +263,7 @@
      <item row="0" column="1">
       <widget class="QCheckBox" name="cb_ch_1_0">
        <property name="text">
-        <string>Channel 1.0</string>
+        <string>Chl 1.0</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -273,7 +273,7 @@
      <item row="2" column="0">
       <widget class="QCheckBox" name="cb_ch_0_2">
        <property name="text">
-        <string>Channel 0.2</string>
+        <string>Ch 0.2</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -283,7 +283,7 @@
      <item row="7" column="3">
       <widget class="QCheckBox" name="cb_ch_3_7">
        <property name="text">
-        <string>Channel 3.7</string>
+        <string>Ch 3.7</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -293,7 +293,7 @@
      <item row="4" column="0">
       <widget class="QCheckBox" name="cb_ch_0_4">
        <property name="text">
-        <string>Channel 0.4</string>
+        <string>Ch 0.4</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -303,7 +303,7 @@
      <item row="3" column="3">
       <widget class="QCheckBox" name="cb_ch_3_3">
        <property name="text">
-        <string>Channel 3.3</string>
+        <string>Ch 3.3</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -313,7 +313,7 @@
      <item row="5" column="3">
       <widget class="QCheckBox" name="cb_ch_3_5">
        <property name="text">
-        <string>Channel 3.5</string>
+        <string>Ch 3.5</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -323,7 +323,7 @@
      <item row="3" column="2">
       <widget class="QCheckBox" name="cb_ch_2_3">
        <property name="text">
-        <string>Channel 2.3</string>
+        <string>Ch 2.3</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -333,7 +333,7 @@
      <item row="6" column="3">
       <widget class="QCheckBox" name="cb_ch_3_6">
        <property name="text">
-        <string>Channel 3.6</string>
+        <string>Ch 3.6</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -343,7 +343,7 @@
      <item row="7" column="1">
       <widget class="QCheckBox" name="cb_ch_1_7">
        <property name="text">
-        <string>Channel 1.7</string>
+        <string>Ch 1.7</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -353,7 +353,7 @@
      <item row="4" column="2">
       <widget class="QCheckBox" name="cb_ch_2_4">
        <property name="text">
-        <string>Channel 2.4</string>
+        <string>Ch 2.4</string>
        </property>
        <property name="checked">
         <bool>true</bool>
@@ -376,24 +376,11 @@
      </item>
     </layout>
    </widget>
-   <widget class="QPushButton" name="connectButton">
-    <property name="geometry">
-     <rect>
-      <x>620</x>
-      <y>60</y>
-      <width>75</width>
-      <height>23</height>
-     </rect>
-    </property>
-    <property name="text">
-     <string>Connect</string>
-    </property>
-   </widget>
    <widget class="QWidget" name="gridLayoutWidget_2">
     <property name="geometry">
      <rect>
       <x>620</x>
-      <y>100</y>
+      <y>140</y>
       <width>541</width>
       <height>51</height>
      </rect>
@@ -403,9 +390,9 @@
       <widget class="QLineEdit" name="fileEdit"/>
      </item>
      <item row="0" column="1">
-      <widget class="QPushButton" name="selectFileButton">
+      <widget class="QPushButton" name="selectDirButton">
        <property name="text">
-        <string>New</string>
+        <string>Change</string>
        </property>
       </widget>
      </item>
@@ -414,17 +401,23 @@
    <widget class="QWidget" name="gridLayoutWidget_3">
     <property name="geometry">
      <rect>
-      <x>900</x>
-      <y>160</y>
-      <width>261</width>
-      <height>51</height>
+      <x>950</x>
+      <y>210</y>
+      <width>201</width>
+      <height>71</height>
      </rect>
     </property>
-    <layout class="QGridLayout" name="gridLayout_3">
-     <item row="0" column="0">
+    <layout class="QGridLayout" name="gridLayout_3" rowstretch="0,0,0">
+     <item row="1" column="1">
       <widget class="QLineEdit" name="lineEdit_2">
        <property name="enabled">
         <bool>true</bool>
+       </property>
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+         <horstretch>0</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
        </property>
        <property name="text">
         <string>Sample Rate (Hz)</string>
@@ -437,37 +430,108 @@
        </property>
       </widget>
      </item>
-     <item row="0" column="1">
-      <widget class="QLineEdit" name="sampleRate">
-       <property name="enabled">
-        <bool>true</bool>
+     <item row="2" column="1">
+      <widget class="QSpinBox" name="sampleRateEdit">
+       <property name="minimum">
+        <number>1</number>
        </property>
-       <property name="layoutDirection">
-        <enum>Qt::LeftToRight</enum>
+       <property name="maximum">
+        <number>200000</number>
        </property>
-       <property name="text">
-        <string>200000</string>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+       <property name="value">
+        <number>200000</number>
        </property>
       </widget>
      </item>
     </layout>
    </widget>
-   <zorder>daqPlot</zorder>
-   <zorder>gridLayoutWidget</zorder>
-   <zorder>connectButton</zorder>
-   <zorder>gridLayoutWidget_2</zorder>
-   <zorder>gridLayoutWidget_3</zorder>
-   <zorder>cb_ch_2_0</zorder>
+   <widget class="QPushButton" name="saveConfig">
+    <property name="geometry">
+     <rect>
+      <x>640</x>
+      <y>210</y>
+      <width>141</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Save Config</string>
+    </property>
+   </widget>
+   <widget class="QPushButton" name="connectButton">
+    <property name="geometry">
+     <rect>
+      <x>1010</x>
+      <y>40</y>
+      <width>141</width>
+      <height>41</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Connect</string>
+    </property>
+   </widget>
+   <widget class="QWidget" name="gridLayoutWidget_4">
+    <property name="geometry">
+     <rect>
+      <x>650</x>
+      <y>30</y>
+      <width>351</width>
+      <height>61</height>
+     </rect>
+    </property>
+    <layout class="QGridLayout" name="gridLayout_4">
+     <property name="sizeConstraint">
+      <enum>QLayout::SetNoConstraint</enum>
+     </property>
+     <item row="0" column="1">
+      <widget class="QLineEdit" name="lineEdit_1">
+       <property name="text">
+        <string>Server Port</string>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="0">
+      <widget class="QLineEdit" name="lineEdit_0">
+       <property name="text">
+        <string>Server IP</string>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="2" column="0">
+      <widget class="QLineEdit" name="serverIpEdit"/>
+     </item>
+     <item row="2" column="1">
+      <widget class="QLineEdit" name="serverPortEdit"/>
+     </item>
+    </layout>
+   </widget>
+   <widget class="QPushButton" name="loadConfig">
+    <property name="geometry">
+     <rect>
+      <x>640</x>
+      <y>240</y>
+      <width>141</width>
+      <height>31</height>
+     </rect>
+    </property>
+    <property name="text">
+     <string>Load Config</string>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1177</width>
+     <width>1230</width>
      <height>21</height>
     </rect>
    </property>

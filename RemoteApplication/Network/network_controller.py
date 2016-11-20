@@ -1,161 +1,305 @@
+from control_client import ControlClient
+from data_client import DataClient
+import control_signals_pb2
+
 import multiprocessing as mp
 import numpy as np
 import threading
 import asyncore
 import bisect
-import control_signals_pb2
-from control_client import ControlClient
-from data_client import DataClient
+import logging
 
 
-class NetworkController():
-    def __init__(self, storage_queue, from_gui_queue, to_gui_queue, gui_data_queue):
+class NetworkController(mp.Process):
+    def __init__(self, storage_sender, gui_control_conn, gui_data_sender, file_header_sender,
+                 file_header_available_event, reading_to_be_stored_event, readings_to_be_plotted_event,
+                 control_msg_from_gui_event, control_msg_from_nc_event):
+        super(NetworkController, self).__init__()
 
-        if type(storage_queue) is mp.queues.Queue:
-            self.storage_queue = storage_queue
-        else:
-            raise TypeError('arg 1 must be a multiprocessing.Queue, found \n%s' % str(type(storage_queue)))
+        # mp.Connection for sending readings from DataClient to StorageController
+        self.storage_sender = storage_sender
 
-        if type(from_gui_queue) is mp.queues.Queue:
-            self.from_gui_queue = from_gui_queue
-        else:
-            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(from_gui_queue)))
+        # mp.Connection for sending  and receiving control messages (protobufs) back and forth to GUI
+        # Note: full duplex Pipe
+        self.gui_control_conn = gui_control_conn
 
-        if type(to_gui_queue) is mp.queues.Queue:
-            self.to_gui_queue = to_gui_queue
-        else:
-            raise TypeError('arg 2 must be a multiprocessing.Queue, found \n%s' % str(type(to_gui_queue)))
+        # mp.Connection for sending ADC readings to GUI for plotting
+        self.gui_data_sender = gui_data_sender
 
-        if type(gui_data_queue) is mp.queues.Queue:
-            self.gui_data_queue = gui_data_queue
-        else:
-            raise TypeError('arg 3 must be a multiprocessing.Queue, found \n%s' % str(type(gui_data_queue)))
+        # mp.Connection for sending start_time, channel_bitmask, and chunk_size to SC
+        self.file_header_sender = file_header_sender
 
-        # shared with control client, holds request messages to be sent
-        self.outgoing_queue = mp.Queue()
+        # IPC condition variables
+        self.file_header_available_event = file_header_available_event
+        self.reading_to_be_stored_event = reading_to_be_stored_event
+        self.readings_to_be_plotted_event = readings_to_be_plotted_event
+
+        # mp.Condition variable for wait/notify on duplex control message connection GUI <--> NC
+        self.control_msg_from_gui_event = control_msg_from_gui_event
+        self.control_msg_from_nc_event = control_msg_from_nc_event
+
+        # used to stop listener threads and terminate the process gracefully
+        self.stop_event = mp.Event()
+
+        # mp.Event variable for ControlClient to notify NC that an ACK is available
+        self.ack_msg_from_cc_event = mp.Event()
+
+        # threading.Event variable to wait on for async client to connect
+        self.control_client_connected_event = threading.Event()
+        self.control_client_disconnected_event = threading.Event()
+
+        # shared with control client, sends request messages to be sent over TCP
+        # receives ACK messages
+        self.nc_control_conn, self.cc_control_conn = mp.Pipe(duplex=True)
 
         # control client will write ACK'd requests here
         self.ack_queue = mp.Queue()
 
         # default to all channels being active
-        # NOTE: this needs to match up with the default state of the channel checboxes on GUI
+        # NOTE: this needs to match up with the default state of the channel checkboxes on GUI
+        # and needs to be propagated to DataClient upon any change
         self.active_channels = ['0.0', '0.1', '0.2', '0.3', '0.4', '0.5', '0.6', '0.7',
                                 '1.0', '1.1', '1.2', '1.3', '1.4', '1.5', '1.6', '1.7',
                                 '2.0', '2.1', '2.2', '2.3', '2.4', '2.5', '2.6', '2.7',
                                 '3.0', '3.1', '3.2', '3.3', '3.4', '3.5', '3.6', '3.7']
 
-        self.channel_mask = self.generateChannelBitMask()
+        # host and port will be extracted from GUI connect message
+        self.host = ''
+        self.port = 0
 
-        # create TCP sockets for communication with DaQuLa
-        self.control_client = ControlClient('localhost', 10001,
-                                            self.outgoing_queue,
-                                            self.ack_queue)
-        self.data_client = DataClient('localhost', 10002,
-                                      self.gui_data_queue,
-                                      self.storage_queue,
-                                      self.active_channels)
+        # used to keep track of messages that have been sent to ControlClient but not yet ACKed
+        self.sent_dict = {}
+
+        self.control_client = ControlClient(control_protobuf_conn=self.cc_control_conn,
+                                            ack_msg_from_cc_event=self.ack_msg_from_cc_event,
+                                            connected_event=self.control_client_connected_event,
+                                            disconnected_event=self.control_client_disconnected_event)
+
+        self.data_client = DataClient(gui_data_sender=self.gui_data_sender,
+                                      storage_sender=self.storage_sender,
+                                      reading_to_be_stored_event=self.reading_to_be_stored_event,
+                                      readings_to_be_plotted_event=self.readings_to_be_plotted_event)
 
         # receives request protobuf messages triggered by GUI events
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
         self.gui_receiver_thread.daemon = True
-        self.gui_receiver_thread.start()
 
         # listens for ACK messages being passed back from control client
         self.ack_listener_thread = threading.Thread(target=self.read_ack_messages)
-        self.ack_listener_thread.start()
+        self.ack_listener_thread.daemon = True
 
         # handle asyncore blocking loop in a separate thread
         # NOTE: lambda needed so loop() doesn't get called right away and block
         # 1.0 sets the polling frequency (default=30.0)
         # use_poll=True is a workaround to avoid "bad file descriptor" upon closing
         # for python 2.7.X according to GitHub Issue...but it still gives the error
-        self.loop_thread = threading.Thread(target=lambda: asyncore.loop(1.0, use_poll=True))
+        self.loop_thread = threading.Thread(target=self.asyncore_loop)
+        self.loop_thread.daemon = True
 
-    def connect_control_port(self):
-        print 'connect_control_port() entered'
+    def run(self):
+        self.gui_receiver_thread.start()
+        self.ack_listener_thread.start()
+        self.gui_receiver_thread.join()
+        logging.debug('NetworkController: gui_receiver thread joined')
+        self.ack_listener_thread.join()
+        logging.debug('NetworkController: ack_listener thread joined')
+        logging.info('NetworkController finished running')
+
+    def connect_control_port(self, host, port):
+        logging.debug('NetworkController: connect_control_port() entered')
         if self.control_client is not None and not self.control_client.connected:
-            self.control_client.connect_control_port()
+            success = self.control_client.connect_control_port(host, port)
             self.loop_thread.start()
+            return success
 
-    def connect_data_port(self):
-        print 'connect_data_port() entered'
+    def connect_data_port(self, host, port):
+        logging.debug('NetworkController: connect_data_port() entered')
         if self.data_client is not None and not self.data_client.connected:
-            self.data_client.connect_data_port()
+            return self.data_client.connect_data_port(host, port)
 
     def close_control_port(self):
+        logging.debug('NetworkController: attempting to close control port')
         if self.data_client.connected:
             self.data_client.close_data_port()
         self.control_client.close_control_port()
         self.loop_thread.join()
+        logging.info('NetworkController: control and data ports closed')
 
     def close_data_port(self):
-        self.control_client.close_data_port()
+        logging.debug('NetworkController: attempting to close data port')
+        return self.data_client.close_data_port()
 
-    def processChannelUpdate(self, sender, checked):
-        if checked:
-            if sender.text() not in self.active_channels:
-                bisect.insort(self.active_channels, str(sender.text()))
-        else:
-            if sender.text() in self.active_channels:
-                self.active_channels.remove(sender.text())
+    # def processChannelUpdate(self, sender, checked):
+    #     if checked:
+    #         if sender.text() not in self.active_channels:
+    #             bisect.insort(self.active_channels, str(sender.text()))
+    #     else:
+    #         if sender.text() in self.active_channels:
+    #             self.active_channels.remove(sender.text())
+    #
+    #     print(self.active_channels)
+    #     self.channel_mask = self.generateChannelBitMask()
+    #     self.data_client.update_active_channels(self.active_channels)
+    #     print(self.channel_mask)
 
-        print(self.active_channels)
-        self.channel_mask = self.generateChannelBitMask()
-        self.data_client.update_active_channels(self.active_channels)
-        print(self.channel_mask)
-
-    def generateChannelBitMask(self):
-        bit_mask = np.uint32(0)
-        offset = 0
-        for i in range(4):
-            for j in range(8):
-                if (str(i) + '.' + str(j)) in self.active_channels:
-                    # bit_mask |= 0x01 << offset
-                    bit_mask = np.bitwise_or(bit_mask, np.left_shift(np.uint32(1), offset))
-                else:
-                    # bit_mask &= ~(0x01 << offset)
-                    bit_mask = np.bitwise_and(bit_mask, np.bitwise_not(np.left_shift(np.uint32(1), offset)))
-                offset += 1
-        return bit_mask
+    def asyncore_loop(self):
+        while not self.stop_event.is_set():
+            asyncore.loop(timeout=1.0, count=1)
+        logging.debug('NetworkController: asyncore loop thread finished')
 
     def recv_from_gui(self):
-        while True:
-            if not self.from_gui_queue.empty() and self.control_client.connected:
-                requestWrapper = control_signals_pb2.RequestWrapper()
+        while not self.stop_event.is_set():
+            if self.gui_control_conn.poll():
+                msg = self.gui_control_conn.recv()
+                logging.info('NetworkController: received control message: \n%s', msg)
 
-                serialized = self.from_gui_queue.get_nowait()
+                if msg['type'] == 'CONNECT':
+                    # TODO: input validation
+                    self.host = msg['host']
+                    self.port = msg['port']
 
-                requestWrapper.ParseFromString(serialized)
-                print 'received wrapper %s' % requestWrapper
+                    self.connect_control_port(self.host, self.port)
 
-                # just pass along to control client without modifying
-                self.outgoing_queue.put(serialized)
+                    # construct a StartRequest protobuf message
+                    startRequest = control_signals_pb2.StartRequest()
+                    startRequest.port = self.port + 1
+                    startRequest.channels = msg['channels']
+                    startRequest.rate = msg['rate']
 
-            elif not self.from_gui_queue.empty() and not self.control_client.connected:
-                self.from_gui_queue.get_nowait()
-                print 'NOT CONNECTED: dropped message'
+                    # wrap it up and copy sequence number
+                    requestWrapper = control_signals_pb2.RequestWrapper()
+                    requestWrapper.sequence = msg['seq']
+                    requestWrapper.start.MergeFrom(startRequest)
 
-                # TODO: notify GUI that connection to server has not been established
-                # TODO: -> requests cannot be sent at this time
+                    # serialize wrapper for sending over Pipe
+                    serialized = requestWrapper.SerializeToString()
+                    self.nc_control_conn.send(serialized)
+                    logging.debug('NetworkController: sent serialized requestWrapper to CC')
+                    # ControlClient uses asyncore so we don't need to notify it
+
+                    if msg['seq'] not in self.sent_dict.keys():
+                        self.sent_dict[msg['seq']] = msg
+                    else:
+                        raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
+                                             % msg['seq'])
+
+                    # asyncore client doesn't connect until it tries to recv/send,
+                    # so we need to be notified asynchronously
+                    control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
+
+                    if not control_client_connected:
+                        # ControlClient connect failed, notify GUI
+                        reply_msg = msg
+                        reply_msg['success'] = False
+                        reply_msg['message'] = 'Failed to connect ControlClient to %s:%d' % (self.host, self.port)
+                        self.gui_control_conn.send(reply_msg)
+                        self.control_msg_from_nc_event.set()
+
+                elif msg['type'] == 'DISCONNECT':
+                    # construct a StopRequest protobuf message
+                    stopRequest = control_signals_pb2.StopRequest()
+                    stopRequest.port = self.port + 1
+                    stopRequest.channels = 0xffff
+
+                    # wrap it up and copy sequence number
+                    requestWrapper = control_signals_pb2.RequestWrapper()
+                    requestWrapper.sequence = msg['seq']
+                    requestWrapper.stop.MergeFrom(stopRequest)
+
+                    # serialize wrapper for sending over Pipe
+                    serialized = requestWrapper.SerializeToString()
+                    self.nc_control_conn.send(serialized)
+                    logging.debug('NetworkController: sent serialized requestWrapper to CC')
+                    # ControlClient uses asyncore so we don't need to notify it
+
+                    if msg['seq'] not in self.sent_dict.keys():
+                        self.sent_dict[msg['seq']] = msg
+                    else:
+                        raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
+                                             % msg['seq'])
+
+            else:
+                while not self.stop_event.is_set():
+                    if self.control_msg_from_gui_event.wait(1.0):
+                        self.control_msg_from_gui_event.clear()
+                        break
 
     def read_ack_messages(self):
-        while True:
-            if not self.ack_queue.empty():
-                acked = self.ack_queue.get_nowait()
+        while not self.stop_event.is_set():
+            if self.nc_control_conn.poll():
+                ack = self.nc_control_conn.recv()
                 ack_wrapper = control_signals_pb2.RequestWrapper()
-                ack_wrapper.ParseFromString(acked)
-                print 'NetworkController: received ACK message %s' % ack_wrapper
+                ack_wrapper.ParseFromString(ack)
+                logging.info('NetworkController: received ACK message %s', ack_wrapper)
+
+                if ack_wrapper.sequence in self.sent_dict.keys():
+                    msg = self.sent_dict.pop(ack_wrapper.sequence)
+                else:
+                    msg = {}
+                    raise RuntimeWarning('NetworkController: received unexpected ACK from ControlClient')
 
                 if ack_wrapper.HasField('start') and not self.data_client.connected:
-                    print 'NetworkController: received start ACK, starting data client'
-                    try:
-                        self.data_client.connect_data_port()
-                        self.to_gui_queue.put(acked)
-                    except Exception, e:
-                        print('ERROR: could not connect data client, exception is %s' % e)
+                    logging.info('NetworkController: received start ACK, starting data client')
+                    start_request = control_signals_pb2.StartRequest()
+                    start_request.MergeFrom(ack_wrapper.start)
+                    # make sure that we're getting the channels we expect
+                    if start_request.channels != msg['channels']:
+                        raise RuntimeWarning('NetworkController: active channels in ACK differ from requested')
+                    self.data_client.update_active_channels(start_request.channels)
 
-                elif self.data_client.connected:
-                    # passthrough
-                    self.to_gui_queue.put(acked)
+                    # send header info to SC and notify
+                    header = (start_request.timestamp, start_request.channels, self.data_client.chunk_size)
+                    self.file_header_sender.send(header)
+                    self.file_header_available_event.set()
 
+                    data_connect_success = self.connect_data_port(self.host, start_request.port)
 
+                    logging.debug('NetworkController: data_connect_success = %s', data_connect_success)
+
+                    if data_connect_success:
+                        # construct a success reply message
+                        reply_msg = msg
+                        reply_msg['success'] = True
+                        reply_msg['message'] = 'Successfully connected control and data ports to host %s' % self.host
+                        reply_msg['timestamp'] = start_request.timestamp
+
+                        # send an ACK message to GUI and notify its receiver
+                        self.gui_control_conn.send(reply_msg)
+                        self.control_msg_from_nc_event.set()
+
+                    else:
+                        # construct a failure reply message
+                        reply_msg = msg
+                        reply_msg['success'] = False
+                        reply_msg['message'] = 'Failed to connected DataClient to %s:%d' % \
+                                               (self.host, start_request.port)
+
+                        self.gui_control_conn.send(reply_msg)
+                        self.control_msg_from_nc_event.set()
+
+                elif ack_wrapper.HasField('stop') and self.data_client.connected:
+                    data_port_disconnected = self.close_data_port()
+                    self.close_control_port()
+                    control_port_disconnected = self.control_client_disconnected_event.wait(timeout=5.0)
+
+                    if data_port_disconnected and control_port_disconnected:
+                        reply_msg = msg
+                        reply_msg['success'] = True
+                        reply_msg['message'] = 'Control and Data clients disconnected successfully'
+                        self.gui_control_conn.send(reply_msg)
+                        self.control_msg_from_nc_event.set()
+                    else:
+                        reply_msg = msg
+                        reply_msg['success'] = False
+                        reply_msg['message'] = 'Unable to disconnect properly or control client disconnect timed out'
+                        self.gui_control_conn.send(reply_msg)
+                        self.control_msg_from_nc_event.set()
+
+                else:
+                    logging.warning('NetworkController: received an unexpected ACK type %s', ack_wrapper)
+
+            else:
+                while not self.stop_event.is_set():
+                    if self.ack_msg_from_cc_event.wait(1.0):
+                        self.ack_msg_from_cc_event.clear()
+                        break

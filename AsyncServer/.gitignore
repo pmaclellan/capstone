@@ -1,5 +1,7 @@
-/Debug/
-/Debug-Cross/
+Debug/ServerApp
+Debug/src/
+Debug/*.mk
+/src/DAQuLAServer
 .settings/
 .project
 .cproject

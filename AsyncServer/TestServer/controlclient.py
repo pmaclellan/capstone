@@ -12,7 +12,7 @@ wrapper = RequestWrapper()
 wrapper.sequence = 1
 wrapper.start.port = 1
 wrapper.start.channels = 4183856184 #4294967295
-wrapper.start.rate = 100
+wrapper.start.rate = 200000
 #while(True):
 # Send size of message
 sendsize = numpy.uint16(len(wrapper.SerializeToString()))
@@ -31,7 +31,7 @@ size = '{:08b}'.format(rawsize[0])
 hello, addr = clientSocket.recvfrom(int(size))
 wrapper.ParseFromString(hello)
 print("received wrapper with port={0} and channels={1}".format(wrapper.start.port, wrapper.start.channels))
-time.sleep(10000)
+time.sleep(1000000)
 
 stop = RequestWrapper()
 stop.sequence = 2
@@ -41,3 +41,12 @@ sendsize = numpy.uint16(len(stop.SerializeToString()))
 clientSocket.send(sendsize)
 print("sending stop request")
 clientSocket.send(stop.SerializeToString())
+rawsize = bytearray(2)
+clientSocket.recv_into(rawsize)
+size = '{:08b}'.format(rawsize[0])
+print("received size")
+stopper, addr = clientSocket.recvfrom(int(size))
+stop.ParseFromString(stopper)
+print("received stop with port={0} and channels={1}".format(stop.stop.port, stop.stop.channels))
+
+clientSocket.close()

@@ -1,4 +1,0 @@
-To cross compile:
-
-arm-xilinx-linux-gnueabi-g++ -I/home/dominic/Downloads/protobuf-3.0.0/src async_server.cpp control_signals.pb.cc -L/home/dominic/Downloads/protobuf-3.0.0/arm-xilinx-linux/lib -lprotobuf -pthread -o server
-

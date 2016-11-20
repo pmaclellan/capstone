@@ -15,6 +15,7 @@
 
 // Function prototypes
 void configGpio(int address, int size, int value);
+void readGpio(int address, int size);
 
 /*
  * GPIOs are used to configure the dma. The addresses and their
@@ -31,12 +32,12 @@ void configGpio(int address, int size, int value);
  */
 
 // GPIO Definitions
-#define GPIO_TIMESTAMP_RST      0x41200000
-#define GPIO_ADC_EN             0x41200008
+#define GPIO_ADC_EN             0x41200000
+#define GPIO_TIMESTAMP_RST      0x41200008
 #define GPIO_SCLK_FREQ          0x41210000
 #define GPIO_SAMPLE_FREQ        0x41210008
-#define GPIO_LEDS               0x41220000
-#define GPIO_PACKETS_PER_FRAME  0x41220008
+#define GPIO_PACKETS_PER_FRAME  0x41220000
+#define GPIO_FIFO_COUNT         0x41220008
 #define GPIO_OVERFLOW           0x41230000
 
 // Note: devmem requires factors of 8 for size!
@@ -44,8 +45,8 @@ void configGpio(int address, int size, int value);
 #define SIZE_ADC_EN             8
 #define SIZE_SCLK_FREQ          16
 #define SIZE_SAMPLE_FREQ        16
-#define SIZE_LEDS               8
 #define SIZE_PACKETS_PER_FRAME  16
+#define SIZE_FIFO_COUNT         16
 #define SIZE_OVERFLOW           8
 
 #endif /* SRC_AXI_GPIO_H_ */
