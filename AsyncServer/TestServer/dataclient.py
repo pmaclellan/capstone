@@ -10,4 +10,9 @@ print("connected")
 rawsize = bytearray(8000);
 while True:
    dataSocket.recv_into(rawsize)
+#   data = '{:08b}'.format(rawsize[0])
+#   dutu = '{:08b}'.format(rawsize[1])
+#   dutu = int(dutu,2)<<8
+#   fulldata = int(data,2)+dutu
+#   print("Received={0}".format(fulldata))
 dataSocket.close()

@@ -12,7 +12,7 @@ wrapper = RequestWrapper()
 wrapper.sequence = 1
 wrapper.start.port = 1
 wrapper.start.channels = 4183856184 #4294967295
-wrapper.start.rate = 2000
+wrapper.start.rate = 200000
 #while(True):
 # Send size of message
 sendsize = numpy.uint16(len(wrapper.SerializeToString()))
