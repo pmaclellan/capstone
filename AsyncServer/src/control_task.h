@@ -21,7 +21,9 @@ private:
     struct sockaddr_in server;
     struct sockaddr_in dest;
     int socketFd;
+    int clientFd;
     pthread_t myThread;
+    bool * stopFlag;
 
     DriverInterfaceIPC * driverInterface;
 
@@ -33,19 +35,20 @@ private:
     int BACKLOG;
 
     void bindToSocket();
-    int acceptControlConnection();
-    bool recvMessage(int clientFd);
-    void processStart(int clientFd);
-    void processStop(int clientFd);
+    void acceptControlConnection();
+    bool recvMessage();
+    void processStart();
+    void processStop();
     void processSens();
 
     void processControlTask();
     static void * staticProcessControlTask(void * c);
 
 public:
-    ControlTask(DriverInterfaceIPC * driverInterface);
+    ControlTask(bool * stopFlag, DriverInterfaceIPC * driverInterface);
     void startControlTask();
     void stopControlTask();
+    void closeControlTaskConnection();
 };
 
 

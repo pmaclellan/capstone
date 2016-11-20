@@ -11,15 +11,18 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <arpa/inet.h> // inet_ntoa
+#include <unistd.h>
 #include "control_task.h"
 
 int adc_channels[32];
 
 int getBit(int n, int bitNum);
 
-ControlTask::ControlTask(DriverInterfaceIPC * driverInterface):
+ControlTask::ControlTask(bool * stopFlag, DriverInterfaceIPC * driverInterface):
         socketFd(-1),
+        clientFd(-1),
         myThread(),
+        stopFlag(stopFlag),
         driverInterface(driverInterface),
         NUM_CHANNELS(32),
         CONTROL_PORT(10001),
@@ -59,9 +62,8 @@ void ControlTask::bindToSocket()
     }
 }
 
-int ControlTask::acceptControlConnection()
+void ControlTask::acceptControlConnection()
 {
-    int clientFd;
     socklen_t addressLength = sizeof(struct sockaddr);
     // Listen for data socket
     if(listen(this->socketFd, BACKLOG) < 0)
@@ -70,7 +72,7 @@ int ControlTask::acceptControlConnection()
         exit(1);
     }
     printf("Listening for control connection\n");
-    if((clientFd = accept(this->socketFd, (struct sockaddr *) &this->dest,
+    if((this->clientFd = accept(this->socketFd, (struct sockaddr *) &this->dest,
             &addressLength)) < 0)
     {
         perror("Error in control task accept connection");
@@ -78,17 +80,15 @@ int ControlTask::acceptControlConnection()
     }
     printf("Server got connection from control client %s\n",
             inet_ntoa(dest.sin_addr));
-
-    return clientFd;
 }
 
-bool ControlTask::recvMessage(int clientFd)
+bool ControlTask::recvMessage()
 {
     bool retValue = true;
     this->requestWrapper = RequestWrapper();
     // Read incoming message size
     uint16_t messageSize;
-    int receive = recv(clientFd, &messageSize, sizeof(uint16_t), 0);
+    int receive = recv(this->clientFd, &messageSize, sizeof(uint16_t), 0);
     if(receive < 0)
     {
         perror("Error receiving control message size");
@@ -104,7 +104,7 @@ bool ControlTask::recvMessage(int clientFd)
     std::vector<char> buffer(messageSize);
 
     // Now that we know the size, receive the message
-    if(recv(clientFd, buffer.data(), buffer.size(), 0) < 0)
+    if(recv(this->clientFd, buffer.data(), buffer.size(), 0) < 0)
     {
         perror("Error receiving control message");
         retValue = false;
@@ -119,7 +119,7 @@ bool ControlTask::recvMessage(int clientFd)
     return retValue;
 }
 
-void ControlTask::processStart(int clientFd)
+void ControlTask::processStart()
 {
     StartRequest startRequest = this->requestWrapper.start();
     std::string ackString;
@@ -152,13 +152,13 @@ void ControlTask::processStart(int clientFd)
     ackSize = strlen(ackString.c_str());
     // Send the ack size to the client
     printf("Control task sending ack size to controller\n");
-    if(send(clientFd, &ackSize, sizeof(ackSize), 0) < 0)
+    if(send(this->clientFd, &ackSize, sizeof(ackSize), 0) < 0)
     {
         perror("Error sending start request ack size in control task\n");
     }
     // Send port number of streaming socket over control socket
     printf("Control task sending port number %d\n", startRequest.port());
-    if(send(clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
+    if(send(this->clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
     {
         perror("Error sending start request ack in control task");
     }
@@ -166,7 +166,7 @@ void ControlTask::processStart(int clientFd)
     this->requestWrapper.release_start();
 }
 
-void ControlTask::processStop(int clientFd)
+void ControlTask::processStop()
 {
     StopRequest stopRequest = this->requestWrapper.stop();
     std::string ackString;
@@ -180,12 +180,12 @@ void ControlTask::processStop(int clientFd)
     this->requestWrapper.SerializeToString(&ackString);
     ackSize = strlen(ackString.c_str());
     printf("Sending ack size to client\n");
-    if(send(clientFd, &ackSize, sizeof(ackSize), 0) < 0)
+    if(send(this->clientFd, &ackSize, sizeof(ackSize), 0) < 0)
     {
         perror("Error sending stop request ack size to client in control task\n");
     }
     printf("Sending stop\n");
-    if(send(clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
+    if(send(this->clientFd, ackString.data(), strlen(ackString.c_str()), 0) < 0)
     {
         perror("Sending stop request ack to client\n");
     }
@@ -210,6 +210,13 @@ void ControlTask::stopControlTask()
 {
     pthread_join(this->myThread, NULL);
 }
+
+void ControlTask::closeControlTaskConnection()
+{
+    close(this->clientFd);
+    close(this->socketFd);
+}
+
 void * ControlTask::staticProcessControlTask(void * c)
 {
     ((ControlTask *) c)->processControlTask();
@@ -221,24 +228,27 @@ void ControlTask::processControlTask()
     // Bind to the socket
     this->bindToSocket();
     // Accept the connection
-    int clientFd = this->acceptControlConnection();
+    this->acceptControlConnection();
     // Read messages
-    while(this->recvMessage(clientFd))
+    while(this->recvMessage())
     {
         // Process the message
         if(this->requestWrapper.has_start())
         {
-            this->processStart(clientFd);
+            this->processStart();
         }
         else if(this->requestWrapper.has_stop())
         {
-            this->processStop(clientFd);
+            this->processStop();
         }
         else if(this->requestWrapper.has_sens())
         {
             this->processSens();
         }
     }
+    // Set the stop flag so main knows to restart
+    printf("Setting stop flag in the control trhead\n");
+    (*this->stopFlag) = true;
 }
 
 int getBit(int n, int bitNum)
