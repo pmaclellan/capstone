@@ -80,6 +80,8 @@ class NetworkController(mp.Process):
                                       reading_to_be_stored_event=self.reading_to_be_stored_event,
                                       readings_to_be_plotted_event=self.readings_to_be_plotted_event)
 
+        self.stop_listener_thread = threading.Thread(target=self.listen_for_stop_event)
+
         # receives request protobuf messages triggered by GUI events
         self.gui_receiver_thread = threading.Thread(target=self.recv_from_gui)
         self.gui_receiver_thread.daemon = True
@@ -97,6 +99,7 @@ class NetworkController(mp.Process):
         self.loop_thread.daemon = True
 
     def run(self):
+        self.stop_listener_thread.start()
         self.gui_receiver_thread.start()
         self.ack_listener_thread.start()
         self.gui_receiver_thread.join()
@@ -105,12 +108,18 @@ class NetworkController(mp.Process):
         logging.debug('NetworkController: ack_listener thread joined')
         logging.info('NetworkController finished running')
 
+    def listen_for_stop_event(self):
+        # block until stop_event gets set externally
+        self.stop_event.wait()
+        self.close_data_port()
+        self.close_control_port()
+
     def connect_control_port(self, host, port):
         logging.debug('NetworkController: connect_control_port() entered')
         if self.control_client is not None and not self.control_client.connected:
-            success = self.control_client.connect_control_port(host, port)
+            success, serr = self.control_client.connect_control_port(host, port)
             self.loop_thread.start()
-            return success
+            return (success, serr)
 
     def connect_data_port(self, host, port, chunk_size, active_channels):
         logging.debug('NetworkController: connect_data_port() entered')
@@ -122,7 +131,8 @@ class NetworkController(mp.Process):
         if self.data_client.connected:
             self.data_client.close_data_port()
         self.control_client.close_control_port()
-        self.loop_thread.join()
+        if self.loop_thread.is_alive():
+            self.loop_thread.join()
         logging.info('NetworkController: control and data ports closed')
 
     def close_data_port(self):
@@ -156,42 +166,52 @@ class NetworkController(mp.Process):
                     self.host = msg['host']
                     self.port = msg['port']
 
-                    self.connect_control_port(self.host, self.port)
+                    success, serr = self.connect_control_port(self.host, self.port)
 
-                    # construct a StartRequest protobuf message
-                    startRequest = control_signals_pb2.StartRequest()
-                    startRequest.port = self.port + 1
-                    startRequest.channels = msg['channels']
-                    startRequest.rate = msg['rate']
-
-                    # wrap it up and copy sequence number
-                    requestWrapper = control_signals_pb2.RequestWrapper()
-                    requestWrapper.sequence = msg['seq']
-                    requestWrapper.start.MergeFrom(startRequest)
-
-                    # serialize wrapper for sending over Pipe
-                    serialized = requestWrapper.SerializeToString()
-                    self.nc_control_conn.send(serialized)
-                    logging.debug('NetworkController: sent serialized requestWrapper to CC')
-                    # ControlClient uses asyncore so we don't need to notify it
-
-                    if msg['seq'] not in self.sent_dict.keys():
-                        self.sent_dict[msg['seq']] = msg
-                    else:
-                        raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
-                                             % msg['seq'])
-
-                    # asyncore client doesn't connect until it tries to recv/send,
-                    # so we need to be notified asynchronously
-                    control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
-
-                    if not control_client_connected:
+                    if not success:
                         # ControlClient connect failed, notify GUI
                         reply_msg = msg
                         reply_msg['success'] = False
-                        reply_msg['message'] = 'Failed to connect ControlClient to %s:%d' % (self.host, self.port)
+                        reply_msg['message'] = 'Failed to connect ControlClient to %s:%d, error is %s' % \
+                                               (self.host, self.port, serr)
                         self.gui_control_conn.send(reply_msg)
                         self.control_msg_from_nc_event.set()
+                    else:
+                        # construct a StartRequest protobuf message
+                        startRequest = control_signals_pb2.StartRequest()
+                        startRequest.port = self.port + 1
+                        startRequest.channels = msg['channels']
+                        startRequest.rate = msg['rate']
+
+                        # wrap it up and copy sequence number
+                        requestWrapper = control_signals_pb2.RequestWrapper()
+                        requestWrapper.sequence = msg['seq']
+                        requestWrapper.start.MergeFrom(startRequest)
+
+                        # serialize wrapper for sending over Pipe
+                        serialized = requestWrapper.SerializeToString()
+                        self.nc_control_conn.send(serialized)
+                        logging.debug('NetworkController: sent serialized requestWrapper to CC')
+                        # ControlClient uses asyncore so we don't need to notify it
+
+                        if msg['seq'] not in self.sent_dict.keys():
+                            self.sent_dict[msg['seq']] = msg
+                        else:
+                            raise RuntimeWarning('NetworkController: control msg with sequence %d already in sent_dict'
+                                                 % msg['seq'])
+
+                        # asyncore client doesn't connect until it tries to recv/send,
+                        # so we need to be notified asynchronously
+                        control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
+
+                        if not control_client_connected:
+                            # ControlClient connect timed out, notify GUI
+                            reply_msg = msg
+                            reply_msg['success'] = False
+                            reply_msg['message'] = 'Timed out while trying to connect ControlClient to %s:%d' % \
+                                                   (self.host, self.port)
+                            self.gui_control_conn.send(reply_msg)
+                            self.control_msg_from_nc_event.set()
 
                 elif msg['type'] == 'DISCONNECT':
                     # construct a StopRequest protobuf message
@@ -248,6 +268,7 @@ class NetworkController(mp.Process):
                     active_channels = self.get_channels_from_bitmask(start_request.channels)
                     bytes_per_sample = (len(active_channels) + 4) * 2
                     chunk_size = min(113, int(msg['rate'] * bytes_per_sample * 0.00001))
+                    print 'received timestamp %d' % start_request.timestamp
                     header = (start_request.timestamp,
                             start_request.channels,
                             chunk_size,
@@ -255,7 +276,7 @@ class NetworkController(mp.Process):
                     self.file_header_sender.send(header)
                     self.file_header_available_event.set()
 
-                    data_connect_success = self.connect_data_port(self.host, start_request.port, chunk_size, active_channels)
+                    data_connect_success, data_serr = self.connect_data_port(self.host, start_request.port, chunk_size, active_channels)
 
                     logging.debug('NetworkController: data_connect_success = %s', data_connect_success)
 
@@ -275,8 +296,8 @@ class NetworkController(mp.Process):
                         # construct a failure reply message
                         reply_msg = msg
                         reply_msg['success'] = False
-                        reply_msg['message'] = 'Failed to connected DataClient to %s:%d' % \
-                                               (self.host, start_request.port)
+                        reply_msg['message'] = 'Failed to connect DataClient to %s:%d, error is %s' % \
+                                               (self.host, start_request.port, data_serr)
 
                         self.gui_control_conn.send(reply_msg)
                         self.control_msg_from_nc_event.set()

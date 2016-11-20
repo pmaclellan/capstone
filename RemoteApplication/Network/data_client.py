@@ -4,6 +4,7 @@ import multiprocessing as mp
 import numpy as np
 import threading
 import logging
+from Queue import Full
 
 
 class DataClient():
@@ -53,8 +54,9 @@ class DataClient():
         self.receiver_thread.start()
 
     def stop_data_threads(self):
-        self.recv_stop_event.set()
-        self.receiver_thread.join()
+        if self.receiver_thread.is_alive():
+            self.recv_stop_event.set()
+            self.receiver_thread.join()
         return True
 
     def get_channels_from_bitmask(self, bitmask):
@@ -75,16 +77,17 @@ class DataClient():
         logging.info('DataClient: attempting connection on %s:%d', host, port)
         try:
             self.sock.connect((host, port))
-        except Exception, e:
-            logging.warning('DataClient: failed to connect to host, exception is %s', e)
-            return False
+        except socket.error as serr:
+            logging.error('DataClient: failed to connect to host, exception is %s', serr)
+            self.connected = False
+            return (self.connected, serr)
 
         self.connected = True
 
         logging.info('DataClient: connected to %s:%d', host, port)
         logging.debug('DataClient: starting data threads')
         self.start_receiver_thread()
-        return self.connected
+        return (self.connected, None)
 
     def close_data_port(self):
         logging.debug('DataClient: close_control_port() entered')
@@ -130,7 +133,10 @@ class DataClient():
                     elif reading_buffer[0] == 173 and reading_buffer[1] == 222:  # 173 == 0xAD, 222 == 0xDE
                         # all good, found DEAD where we expected
                         # only send the first reading to GUI to avoid extra data transfer overhead
-                        self.gui_data_queue.put_nowait(reading_buffer[:reading_byte_length])
+                        try:
+                            self.gui_data_queue.put_nowait(reading_buffer[:reading_byte_length])
+                        except Full:
+                            pass
                         self.storage_sender.send(reading_buffer)
                         # notify the gui and storage controller that they have work to do
                         self.reading_to_be_stored_event.set()
