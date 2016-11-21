@@ -1,4 +1,3 @@
-import sys
 import sip
 sip.setapi('QVariant',2)
 from PyQt4 import QtGui, uic, QtCore, QtGui
@@ -8,16 +7,16 @@ import pyqtgraph as pg
 import numpy as np
 from pyqtgraph.ptime import time
 import os
-from datetime import datetime
 import multiprocessing as mp
 import threading
 import Queue
 import inspect
 import logging
+import time as realtime
 
 
 class MainWindow(QtGui.QMainWindow):
-    def __init__(self, control_conn, data_receiver, filepath_sender,
+    def __init__(self, control_conn, data_queue, filepath_sender,
                  readings_to_be_plotted_event, filepath_available_event,
                  control_msg_from_gui_event, control_msg_from_nc_event):
         super(MainWindow, self).__init__()
@@ -26,7 +25,7 @@ class MainWindow(QtGui.QMainWindow):
         self.control_conn = control_conn
   
         # mp.Connection for receiving raw data stream for plotting
-        self.data_receiver = data_receiver
+        self.data_queue = data_queue
   
         # mp.Connection for sending directory to store binary files in to StorageController
         self.filepath_sender = filepath_sender
@@ -46,8 +45,6 @@ class MainWindow(QtGui.QMainWindow):
         # UI event handlers will place messages into this queue to be sent by control_send_thread
         self.send_queue = Queue.Queue()
         self.msg_to_be_sent_event = threading.Event()
-
-        self.numpy_data_queue = Queue.Queue()
   
         self.sequence = 0
         self.sequence_lock = threading.Lock()
@@ -65,21 +62,16 @@ class MainWindow(QtGui.QMainWindow):
         self.control_recv_thread = threading.Thread(target=self.recv_control_messages)
         self.control_recv_thread.daemon = True
         self.control_send_thread.start()
-        self.control_recv_thread.start()
 
         # used to signal data thread to stop
         self.stop_event = threading.Event()
-
-        # worker thread to receive ADC data stream from NC.DC for plotting
-        self.data_receiver_thread = threading.Thread(target=self.recv_data_stream, args=[self.stop_event])
-        self.data_receiver_thread.daemon = True
 
         self.ui = uic.loadUi('Gui/DAQuLA.ui')
         self.settings = QSettings('Gui/settings.ini', QSettings.IniFormat)
         self.handle_load_config()
         
         self.checkBoxes = CheckBoxes(self)
-        self.daq = DaqPlot(self, self.numpy_data_queue)
+        self.daq = DaqPlot(self)
         self.ui.show()
         
         #Connect buttons to functions
@@ -122,8 +114,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
-        with self.msg_to_be_sent_event:
-            self.msg_to_be_sent_event.notify()
+        self.msg_to_be_sent_event.set()
 
 
         # TODO: show a 'connecting...' spinner
@@ -149,8 +140,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # put disconnect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(disconnect_msg)
-        with self.msg_to_be_sent_event:
-            self.msg_to_be_sent_event.notify()
+        self.msg_to_be_sent_event.set()
 
         # TODO: show a 'disconnecting...' spinner
 
@@ -254,6 +244,7 @@ class MainWindow(QtGui.QMainWindow):
                             if response['success'] == True:
                                 # grab 64-bit Unix timestamp to add to each reading offset
                                 self.start_time = response['timestamp']
+                                self.chunk_size = response['chunk']
                                 self.data_receiver_thread.start()
 
                                 self.ui.connectButton.setText('Disconnect')
@@ -266,6 +257,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(False)
                                 self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
+                                
                             else:
                                 self.ui.connectButton.setText('Connect')
                                 self.ui.connectButton.clicked.disconnect()
@@ -277,6 +269,8 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
+                            
+                            # self.showResultMessage(response)
 
                         elif response['type'] == 'DISCONNECT':
                             if response['success'] == True:
@@ -293,6 +287,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
+                                
                             else:
                                 self.ui.connectButton.setText('Disconnect')
                                 self.ui.connectButton.clicked.disconnect()
@@ -304,7 +299,9 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.loadConfig.setEnabled(False)
                                 self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
-                        # self.showResultMessage(response)
+                            
+                            # self.showResultMessage(response)
+
                     else:
                         raise RuntimeWarning('unexpected message received from NetworkController')
             else:
@@ -312,35 +309,6 @@ class MainWindow(QtGui.QMainWindow):
                     if self.control_msg_from_nc_event.wait(1.0):
                         self.control_msg_from_nc_event.clear()
                         break
-
-    def recv_data_stream(self, *args):
-        stop_event = args[0]
-        # reading_block will be a list of bytearrays each containing one full sample
-        reading_block = []
-        num_channels = self.checkBoxes.numActive()
-        bytes_per_500 = (num_channels + 4) * 2 * 500
-        while not stop_event.is_set():
-            if self.data_receiver.poll():
-                raw_reading = self.data_receiver.recv()
-                reading_block.append(raw_reading)
-                if len(reading_block) >= bytes_per_500:
-                    numpy_array_list = self.create_numpy_arrays(reading_block, num_channels)
-                    self.numpy_data_queue.put(numpy_array_list)
-                    reading_block = []
-            else:
-                while not self.stop_event.is_set():
-                    if self.readings_to_be_plotted_event.wait(1.0):
-                        self.readings_to_be_plotted_event.clear()
-                        break
-
-    def create_numpy_arrays(self, reading_block, num_channels):
-        numpy_arrays = []
-        # offset by 8 bytes to skip the DEAD, TS header
-        for i in range(8, 2 * num_channels + 8, 2):
-            # create a list of len(reading_block) 16-bit readings for each active channel
-            channel = [(x[i+1] << 8) + x[i] for x in reading_block]
-            numpy_arrays.append(np.array(channel))
-        return numpy_arrays
 
     # def showResultMessage(self, message):
     #     msg = QMessageBox()
@@ -358,17 +326,21 @@ class MainWindow(QtGui.QMainWindow):
     #     msg.setStandardButtons(QMessageBox.Ok)
 
         
-#     def showdialog(self):
-#         msg = QMessageBox()
-#         msg.setIcon(QMessageBox.Information)
-#         
-#         msg.setText(os.path.basename(str(self.ui.fileEdit.text())) + " already exists!")
-#         msg.setInformativeText("Are you sure you want to overwrite this file?")
-#         msg.setWindowTitle("Warning!")
-#         msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-#         msg.buttonClicked.connect(self.msgbtn)
-#         msg.exec_()
-#     
+    def showResultMessage(self, message):
+        msg = QMessageBox()
+        if message['success']:
+            msg.setIcon(QMessageBox.Information)
+            msg.setText("Success!")
+            msg.setWindowTitle("Success")
+            #msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+            #msg.buttonClicked.connect(self.msgbtn)
+            msg.exec_()
+        else:
+            msg.setIcon(QMessageBox.Critical)
+            msg.setText("Failure!")
+            msg.setWindowTitle("Action Failed!")
+            msg.setInformativeText(message['message'])
+     
 #     def msgbtn(self, i):
 #         if (i.text() == "&No"):
 #             fileUpdated = self.selectFile()
@@ -376,26 +348,23 @@ class MainWindow(QtGui.QMainWindow):
 #                 self.cancel = True
         
 class DaqPlot:
-    def __init__(self, parent, numpy_data_queue):
+    def __init__(self, parent):
         self.parent = parent
         self.parent.ui.daqPlot.setLabel('bottom', 'Index', units='B')
-        self.numpy_data_queue = numpy_data_queue
         
     def initPlot(self, numPlots):
+        self.dataToPlot = [[]for i in range(numPlots)]
         self.nPlots = numPlots
-        self.nSamples = 500
+        self.nSamples = 150
         self.curves = []
-        for i in range(self.nPlots):
-            c = pg.PlotCurveItem(pen=(i,self.nPlots*1.3))
+        for i in range(numPlots):
+            c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
             self.parent.ui.daqPlot.addItem(c)
-            c.setPos(0,i*6)
+            c.setPos(0,i*10)
             self.curves.append(c)
-        self.parent.ui.daqPlot.setYRange(0, self.nPlots*6)
+        self.parent.ui.daqPlot.setYRange(-5, 10*numPlots-5)
         self.parent.ui.daqPlot.setXRange(0, self.nSamples)
         self.parent.ui.daqPlot.resize(600,900)
-        self.x = np.linspace(-8*np.pi, 8*np.pi, 500)
-        self.data = np.sin(self.x)
-        #self.data = np.random.normal(size=(self.nPlots*23,self.nSamples))
         self.ptr = 0
         self.lastTime = time()
         self.fps = None
@@ -414,26 +383,26 @@ class DaqPlot:
 #        self.parent.ui
         
     def update(self):
-        if not self.numpy_data_queue.empty():
-            numpy_data = self.numpy_data_queue.get()
-            self.count += 1
-            #print "---------", count
-            for i in range(self.nPlots):
-                #self.curves[i].setData(self.data[(self.ptr+i)%self.data.shape[0]])
-                # self.curves[i].setData(0.25*np.sin(180*np.pi*self.x)*self.fps)
-                self.curves[i].setData(numpy_data[i])
-            #print "   setData done."
-            self.ptr += self.nPlots
-            now = time()
-            self.x = np.linspace(self.lastTime, now, 500)
-            dt = now - self.lastTime
-            self.lastTime = now
-            if self.fps is None:
-                self.fps = 1.0/dt
-            else:
-                s = np.clip(dt*3., 0, 1)
-                self.fps = self.fps * (1-s) + (1.0/dt) * s
-            self.parent.ui.daqPlot.setTitle('%0.2f fps' % self.fps)
+        if not self.parent.data_queue.empty():
+            reading = [self.parent.data_queue.get()]
+            [[self.dataToPlot[(j-16)/2].append((float(reading[i][j] + (reading[i][j+1] << 8))/6553.6)-5) for i in range(0,len(reading))] for j in range(16,len(reading[0]),2)]
+            
+            if len(self.dataToPlot[0]) >= self.nSamples:
+                self.count += 1
+                for i in range(self.nPlots):
+                    self.curves[i].setData(self.dataToPlot[i])
+                self.ptr += self.nPlots
+                now = time()
+                self.x = np.linspace(self.lastTime, now, 500)
+                dt = now - self.lastTime
+                self.lastTime = now
+                if self.fps is None:
+                    self.fps = 1.0/dt
+                else:
+                    s = np.clip(dt*3., 0, 1)
+                    self.fps = self.fps * (1-s) + (1.0/dt) * s
+                self.parent.ui.daqPlot.setTitle('%0.2f fps' % self.fps)
+                self.dataToPlot = [[] for i in range(self.nPlots)]
 
 class CheckBoxes:
     def __init__(self, parent):

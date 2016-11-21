@@ -36,8 +36,14 @@ class ControlClient(asyncore.dispatcher):
 
     def connect_control_port(self, host, port):
         logging.info('ControlClient: attempting connection to %s:%d', host, port)
-        self.connect((host, port))
-        self.connected = True
+        try:
+            self.connect((host, port))
+            self.connected = True
+            return (self.connected, None)
+        except socket.error as serr:
+            logging.error('ControlClient: failed to connect, error is %s', serr)
+            self.connected = False
+            return (self.connected, serr)
 
     def close_control_port(self):
         logging.debug('ControlClient: close_control_port() entered')
@@ -52,17 +58,25 @@ class ControlClient(asyncore.dispatcher):
         self.connected = False
         self.close()
         self.disconnected_event.set()
+        return False
 
     def handle_read(self):
         # read 16 bit length header	
         size = bytearray(2)
-        # TODO: wrap in try/except and handle Connection Refused socket.error
-        self.recv_into(size)
-        length = size[0]
+        try:
+            self.recv_into(size)
+        except socket.error as serr:
+            logging.error('ControlClient: failed to connect, error is %s', serr)
+            self.connected = False
+            self.handle_close()
+            return
+
+        length = (size[1] << 8) + size[0]
+        print length
         logging.debug('ControlClient: received length header: %s', length)
 
         # read the message content
-        msg = self.recv(int(length))
+        msg = self.recv(length)
         logging.debug('ControlClient: received message: %s', msg)
 
         # TODO: (probably not necessary) put onto incoming_queue and have another thread handle the parsing
@@ -76,7 +90,7 @@ class ControlClient(asyncore.dispatcher):
         if sequence in self.sent_dict.keys():
             serialized_acked_request = self.sent_dict.pop(sequence)
             logging.debug('ControlClient: ACKed request popped %s', serialized_acked_request)
-            self.control_protobuf_conn.send(serialized_acked_request)
+            self.control_protobuf_conn.send(msg)
             self.ack_msg_from_cc_event.set()
 
     def readable(self):

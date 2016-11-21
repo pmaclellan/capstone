@@ -5,6 +5,7 @@ import multiprocessing as mp
 import time
 import os.path
 import logging
+import json
 
 class StorageController(mp.Process):
     def __init__(self, storage_receiver, filepath_receiver, file_header_receiver,
@@ -86,7 +87,13 @@ class StorageController(mp.Process):
     def listen_for_file_header_update(self):
         while not self.stop_event.is_set():
             if self.file_header_receiver.poll():
-                self.start_time, self.channel_bitmask, self.chunk_size = self.file_header_receiver.recv()
+                start_time, channel_bitmask, chunk_size, sample_rate = self.file_header_receiver.recv()
+                self.json_header = {
+                    'start_time' : start_time,
+                    'channel_bitmask' : channel_bitmask,
+                    'chunk_size' : chunk_size,
+                    'sample_rate' : sample_rate
+                }
                 logging.debug('StorageController: received header info, \n'
                               'start_time=%d, channel_bitmask=%d, chunk_size=%d',
                               self.start_time, self.channel_bitmask, self.chunk_size)
@@ -101,35 +108,38 @@ class StorageController(mp.Process):
         records_written = 0
         bytes_written = 0
         MB_written = 0
+        file_number = 0
         f = None
+        bin_files = []
 
         while not self.stop_event.is_set():
             # wait to have something to write before we open a new file
             while not self.stop_event.is_set():
-                if self.reading_to_be_stored_event.wait(1.0):
+                if self.reading_to_be_stored_event.wait(0.01):
                     self.reading_to_be_stored_event.clear()
                     break
             if self.stop_event.is_set():
                 break
             bytes_written = 0
-            filename = time.strftime('%Y%m%d%H%M%S') + '.daqula'
+            filename = 'daqula%04d.bin' % file_number
+            file_number += 1
             file_to_open = os.path.join(self.filepath, filename)
-            logging.debug('StorageController: opening new binary file \n%s', file_to_open)
+            logging.info('StorageController: opening new binary file \n%s', file_to_open)
             f = open(file_to_open, 'wb')
-            # print 'StorageController: opened a new file: %s' % filename
-            f.write(str(self.start_time) + '\n')
-            f.write(str(self.channel_bitmask) + '\n')
-            f.write(str(self.chunk_size) + '\n')
+            bin_files.append(filename)
+            self.json_header['file_list'] = bin_files
+
+            with open(os.path.join(self.filepath, 'stream.json'), 'w') as jsonfile:
+                json.dump(self.json_header, jsonfile, sort_keys=True, indent=4, ensure_ascii=False)
+
             while bytes_written < filesize_threshold:
                 if self.storage_receiver.poll():
                     reading = self.storage_receiver.recv()
-                    f.write(reading + '\n')
+                    f.write(reading)
                     records_written += 1
                     bytes_written += len(reading)
-                    # for testing purposes only
-                    if records_written >= self.expected_records:
-                        with self.file_writer_done_cond:
-                            self.file_writer_done_cond.notify()
+                    if records_written % 10000 == 0:
+                        logging.info('StorageController: %d records written', records_written)
                 else:
                     timed_out = not self.reading_to_be_stored_event.wait(3.0)
                     if timed_out:
