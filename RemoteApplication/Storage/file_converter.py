@@ -47,6 +47,7 @@ def convert_file(file, source_dir, output_dir, active_channels, start_time):
 						# write the leftover readings to the file before closing
 						fout.create_dataset(str(block_counter), data=dataset)
 					break
+
 				# extract the 48-bit timestamp value
 				timestamp = (raw_reading[7] << 40) + (raw_reading[6] << 32) + \
 										(raw_reading[5] << 24) + (raw_reading[4] << 16) + \
@@ -56,10 +57,10 @@ def convert_file(file, source_dir, output_dir, active_channels, start_time):
 
 				# split the 64-bit timestamp into 16-bit chunks for more 
 				# efficient storage (ts0 is MSB, ts3 is LSB)
-				ts0 = (abs_ts & (0xff << 48)) >> 48
-				ts1 = (abs_ts & (0xff << 32)) >> 32
-				ts2 = (abs_ts & (0xff << 16)) >> 16
-				ts3 = abs_ts & 0xff
+				ts0 = (abs_ts & (0xffff << 48)) >> 48
+				ts1 = (abs_ts & (0xffff << 32)) >> 32
+				ts2 = (abs_ts & (0xffff << 16)) >> 16
+				ts3 = abs_ts & 0xffff
 
 				# start building the list that will be converted to a numpy array later
 				intermediate = [('TS0', ts0), ('TS1', ts1), ('TS2', ts2), ('TS3', ts3)]

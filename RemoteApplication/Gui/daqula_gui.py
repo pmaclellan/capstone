@@ -62,7 +62,6 @@ class MainWindow(QtGui.QMainWindow):
         self.control_recv_thread = threading.Thread(target=self.recv_control_messages)
         self.control_recv_thread.daemon = True
         self.control_send_thread.start()
-        self.control_recv_thread.start()
 
         # used to signal data thread to stop
         self.stop_event = threading.Event()
@@ -271,7 +270,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.saveConfig.setEnabled(True)
                                 self.checkBoxes.unlockBoxes()
                             
-                            self.showResultMessage(response)
+                            # self.showResultMessage(response)
 
                         elif response['type'] == 'DISCONNECT':
                             if response['success'] == True:
@@ -301,7 +300,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.saveConfig.setEnabled(False)
                                 self.checkBoxes.lockBoxes()
                             
-                            self.showResultMessage(response)
+                            # self.showResultMessage(response)
 
                     else:
                         raise RuntimeWarning('unexpected message received from NetworkController')
@@ -361,7 +360,7 @@ class DaqPlot:
         for i in range(numPlots):
             c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
             self.parent.ui.daqPlot.addItem(c)
-            c.setPos(0,i*6)
+            c.setPos(0,i*10)
             self.curves.append(c)
         self.parent.ui.daqPlot.setYRange(-5, 10*numPlots-5)
         self.parent.ui.daqPlot.setXRange(0, self.nSamples)
