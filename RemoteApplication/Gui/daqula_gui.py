@@ -71,6 +71,7 @@ class MainWindow(QtGui.QMainWindow):
         self.handle_load_config()
         
         self.checkBoxes = CheckBoxes(self)
+        self.checkBoxes.lockBoxes()
         self.daq = DaqPlot(self)
         self.ui.show()
         
@@ -268,7 +269,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.sampleRateEdit.setEnabled(True)
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
-                                self.checkBoxes.unlockBoxes()
+                                # self.checkBoxes.unlockBoxes()
                             
                             # self.showResultMessage(response)
 
@@ -286,7 +287,7 @@ class MainWindow(QtGui.QMainWindow):
                                 self.ui.sampleRateEdit.setEnabled(True)
                                 self.ui.loadConfig.setEnabled(True)
                                 self.ui.saveConfig.setEnabled(True)
-                                self.checkBoxes.unlockBoxes()
+                                # self.checkBoxes.unlockBoxes()
                                 
                             else:
                                 self.ui.connectButton.setText('Disconnect')
