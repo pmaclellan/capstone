@@ -14,38 +14,19 @@ int main()
     DriverInterfaceIPC driverInterface;
     driverInterface.connectDriverInterface();
 
-    while(1)
-    {
-        bool stopFlag = false;
+    // Create a control task and and start it
+    printf("Starting control task\n");
+    ControlTask controlTask(&driverInterface);
+    controlTask.startControlTask();
 
-        // Create a control task and and start it
-        ControlTask controlTask(&stopFlag, &driverInterface);
-        controlTask.startControlTask();
+    // Create a data task and start
+    printf("Starting data task\n");
+    DataTask dataTask;
+    dataTask.startDataTask();
 
-        // Create a data task and start
-        DataTask dataTask(&stopFlag);
-        dataTask.startDataTask();
-
-        while(1)
-        {
-            if (stopFlag)
-            {
-                printf("Processing stop flag\n");
-                // close the ports
-                controlTask.closeControlTaskConnection();
-                dataTask.closeDataTaskConnection();
-
-                // join the threads
-                controlTask.stopControlTask();
-                dataTask.stopDataTask();
-                break;
-            }
-            else
-            {
-                sleep(1);
-            }
-        }
-    }
+    // Stop the tasks. SHOULD NOT HAPPEN
+    dataTask.stopDataTask();
+    controlTask.stopControlTask();
 
     return 0;
 }
