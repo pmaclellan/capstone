@@ -15,7 +15,7 @@
 
 // Function prototypes
 void configGpio(int address, int size, int value);
-void readGpio(int address, int size);
+uint16_t readGpio(int address, int size);
 
 /*
  * GPIOs are used to configure the dma. The addresses and their

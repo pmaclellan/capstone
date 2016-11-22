@@ -19,8 +19,17 @@ void configGpio(int address, int size, int value)
     system(command);
 }
 
-void readGpio(int address, int size)
+uint16_t readGpio(int address, int size)
 {
+    FILE * fp;
     char command[100];
+    char response[100];
     sprintf(command, "/sbin/devmem 0x%08X %d", address, size);
+    fp = popen(command, "r");
+
+    fgets(response, 100, fp);
+    uint16_t value;
+    sscanf(response, "%d", &value);
+    printf("The value read was: %d", value);
+    return value;
 }
