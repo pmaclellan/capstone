@@ -1,0 +1,177 @@
+This document is intended to record known hardware and software level problems that impact functionality at the user level. Please date and sign your entries accordingly.
+
+--------------------------------------------------------------------------------
+NUMBER: 0
+--------------------------------------------------------------------------------
+DATE SUBMITTED: 11/22/2016 
+SUBMITTED BY: Lauria Clarke
+CONTACT: clarke.la@husky.neu.edu
+
+This problem involves the following components and observations - 
+
+SUSPECTED COMPONENTS: 
+Digital/Analog Hardware
+
+
+FUNCTIONAL IMPACT: 
+Inconsistent and inaccurate output voltage from some ADC channels.  
+
+
+OBSERVED SYMPTOM:
+(ADC and channel numbering follows schematic.)
+The following channels are known to output the correct voltage when tested with 5v input - 0xFFFF
+ADC.1 - Channels 5-8
+ADC.2 - Channels 5-8
+
+The following channels are known to be almost correct when tested with 5v input - 0xFFFE
+ADC.0 - Channels 1-4
+ADC.1 - Channels 1-4
+ADC.2 - Channels 1-4
+ADC.3 - Channels 1-4
+
+The following channels are known to be incorrect when tested with 5v input - 0x7FFF
+ADC.0 - Channels 5-8
+ADC.3 - Channels 5-8
+
+
+SUPPORTING DATA:
+Full examination of signals on PCB can be reviewed here: 
+(email clarke.la@husky.neu.edu if you need permission to view)
+https://docs.google.com/spreadsheets/d/1uHOX_wDoNqp3jCHlfuc4kRO52PaNyjKzSk2Rr6iaP4k/edit#gid=0
+
+
+SUSPECTED CAUSE:
+Incorrect SPI readings from ADC due to timing problems. This may be the result of delays caused by PCB routing or FPGA level digital hardware errors. Still under investigation.
+
+
+SOLUTION:
+This is still being investigated. Potential solutions could be adding signal delays and other conditioning in digital hardware, or re-routing PCB.
+
+----
+
+DATE RESOLVED:
+
+
+FINAL RESOLUTION:
+
+
+OTHER NOTES:
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+NUMBER: 1
+--------------------------------------------------------------------------------
+DATE SUBMITTED:
+SUBMITTED BY:
+CONTACT: 
+
+This problem involves the following components and observations - 
+
+SUSPECTED COMPONENTS: 
+
+
+FUNCTIONAL IMPACT: 
+
+
+OBSERVED SYMPTOM: 
+
+
+SUPPORTING DATA:
+
+
+SUSPECTED CAUSE:
+
+
+
+SOLUTION:
+
+----
+
+DATE RESOLVED:
+
+
+FINAL RESOLUTION:
+
+
+OTHER NOTES:
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+NUMBER: 2
+--------------------------------------------------------------------------------
+DATE SUBMITTED:
+SUBMITTED BY:
+CONTACT: 
+
+This problem involves the following components and observations - 
+
+SUSPECTED COMPONENTS: 
+
+
+FUNCTIONAL IMPACT: 
+
+
+OBSERVED SYMPTOM: 
+
+
+SUPPORTING DATA:
+
+
+SUSPECTED CAUSE:
+
+
+
+SOLUTION:
+
+----
+
+DATE RESOLVED:
+
+
+FINAL RESOLUTION:
+
+
+OTHER NOTES:
+
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+NUMBER: 3
+--------------------------------------------------------------------------------
+DATE SUBMITTED:
+SUBMITTED BY:
+CONTACT: 
+
+This problem involves the following components and observations - 
+
+SUSPECTED COMPONENTS: 
+
+
+FUNCTIONAL IMPACT: 
+
+
+OBSERVED SYMPTOM: 
+
+
+SUPPORTING DATA:
+
+
+SUSPECTED CAUSE:
+
+
+
+SOLUTION:
+
+----
+
+DATE RESOLVED:
+
+
+FINAL RESOLUTION:
+
+
+OTHER NOTES:
+
+--------------------------------------------------------------------------------
