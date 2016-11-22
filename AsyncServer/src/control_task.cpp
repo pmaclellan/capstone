@@ -18,11 +18,10 @@ int adc_channels[32];
 
 int getBit(int n, int bitNum);
 
-ControlTask::ControlTask(bool * stopFlag, DriverInterfaceIPC * driverInterface):
+ControlTask::ControlTask(DriverInterfaceIPC * driverInterface):
         socketFd(-1),
         clientFd(-1),
         myThread(),
-        stopFlag(stopFlag),
         driverInterface(driverInterface),
         NUM_CHANNELS(32),
         CONTROL_PORT(10001),
@@ -225,30 +224,32 @@ void * ControlTask::staticProcessControlTask(void * c)
 
 void ControlTask::processControlTask()
 {
-    // Bind to the socket
-    this->bindToSocket();
-    // Accept the connection
-    this->acceptControlConnection();
-    // Read messages
-    while(this->recvMessage())
+    while(1)
     {
-        // Process the message
-        if(this->requestWrapper.has_start())
+        // Bind to the socket
+        this->bindToSocket();
+        // Accept the connection
+        this->acceptControlConnection();
+        // Read messages
+        while(this->recvMessage())
         {
-            this->processStart();
+            // Process the message
+            if(this->requestWrapper.has_start())
+            {
+                this->processStart();
+            }
+            else if(this->requestWrapper.has_stop())
+            {
+                this->processStop();
+            }
+            else if(this->requestWrapper.has_sens())
+            {
+                this->processSens();
+            }
         }
-        else if(this->requestWrapper.has_stop())
-        {
-            this->processStop();
-        }
-        else if(this->requestWrapper.has_sens())
-        {
-            this->processSens();
-        }
+        // Close connection before reconnecting
+        this->closeControlTaskConnection();
     }
-    // Set the stop flag so main knows to restart
-    printf("Setting stop flag in the control trhead\n");
-    (*this->stopFlag) = true;
 }
 
 int getBit(int n, int bitNum)

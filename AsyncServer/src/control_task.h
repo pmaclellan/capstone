@@ -23,7 +23,6 @@ private:
     int socketFd;
     int clientFd;
     pthread_t myThread;
-    bool * stopFlag;
 
     DriverInterfaceIPC * driverInterface;
 
@@ -45,7 +44,7 @@ private:
     static void * staticProcessControlTask(void * c);
 
 public:
-    ControlTask(bool * stopFlag, DriverInterfaceIPC * driverInterface);
+    ControlTask(DriverInterfaceIPC * driverInterface);
     void startControlTask();
     void stopControlTask();
     void closeControlTaskConnection();
