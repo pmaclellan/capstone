@@ -24,5 +24,6 @@ extern DMA_STATUS DmaStatus; // Global DMA status
 void initDMA();
 void startDMA(uint16_t sampleFreq);
 void stopDMA();
+int isOverflowed();
 
 #endif /* SRC_AXI_DMA_H_ */

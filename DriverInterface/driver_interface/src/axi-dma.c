@@ -44,3 +44,8 @@ void stopDMA()
     // Disable the ADC
     initDMA();
 }
+
+int isOverflowed()
+{
+    return readGpio(GPIO_FIFO_COUNT, SIZE_FIFO_COUNT);
+}
