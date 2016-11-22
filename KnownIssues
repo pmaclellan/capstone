@@ -62,29 +62,38 @@ OTHER NOTES:
 --------------------------------------------------------------------------------
 NUMBER: 1
 --------------------------------------------------------------------------------
-DATE SUBMITTED:
-SUBMITTED BY:
-CONTACT: 
+DATE SUBMITTED: 11/22/16
+SUBMITTED BY: Dominic Harkness
+CONTACT: harkness.d@husky.neu.edu
 
 This problem involves the following components and observations - 
 
 SUSPECTED COMPONENTS: 
+DAQuLAServer and DriverInterface
 
 
 FUNCTIONAL IMPACT: 
+Inconsistent reconnection when running the application in both GUI and headless mode.
 
 
 OBSERVED SYMPTOM: 
+ - When the GUI disconnects without following proper procedure, the server may enter a bad state that requires a reboot.
+ - When testing with a NIC that does not support the full throghput (~120Mbps), the server will be throttled, which will result in the DMA fifo overflowing. This is not recoverable, so a restart of the DAQuLA is required.
 
 
 SUPPORTING DATA:
+ - The server has been observed as crashing when the GUI does not disconnect gracefully.
+ - DMA error messages have been observed when running full speed tests (200kHz) using a 100Mbps NIC. The server is able to disconnect and reconnect, however all data read after that point is garbage. System reset is required to begin receiving real data again.
 
 
 SUSPECTED CAUSE:
-
+ - Reconnection logic is bad
+ - For the fifo overflow error: When calling a TCP send, the server will block until it is able to send. Because it is blocking on the send call, it never reads from the fifo, which causes it to overflow.
 
 
 SOLUTION:
+ - Reconnection logic should live in the individual threads (data and control) so that they independently re-enter the connection logic before the thread joings.
+ - The fifo overflow is still being investigated. We hope to utilize the occupancy count or overflow flags that the DMA gives us to flush some data from the fifo when it starts to approach overflow.
 
 ----
 

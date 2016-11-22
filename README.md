@@ -1,6 +1,6 @@
-# capstone
+# Capstone
 
-<i>daqula</i> is a high throughput synchronous data acquisition system (DAQ). 
+<i>DAQuLA</i> is a high throughput synchronous data acquisition system (DAQ). 
 
 It is designed to work with up to 32 analog input channels, which connect to a custom PCB containing four 8-channel Analog-to-Digital Converters (ADC), and hosting a Microzed Programmable SoC. The system is capable of sampling all ADCs simultaneously at a configurable rate and recording readings timestamped in nanoseconds.
 
