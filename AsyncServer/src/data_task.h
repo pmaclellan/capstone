@@ -20,7 +20,6 @@ private:
     struct sockaddr_in dest;
     int socketFd;
     int clientFd;
-    bool * stopFlag;
 
     pthread_t myThread;
 
@@ -41,7 +40,7 @@ private:
     static void * staticProcessDataTask(void * c);
     void processDataTask();
 public:
-    DataTask(bool * stopFlag);
+    DataTask();
     void startDataTask();
     void stopDataTask();
     void closeDataTaskConnection();
