@@ -10,6 +10,8 @@ from Queue import Full
 class DataClient():
     def __init__(self, storage_sender, gui_data_queue, reading_to_be_stored_event, readings_to_be_plotted_event):
 
+        self.sock = None
+
         # Pipe connection to send data readings to StorageController
         self.storage_sender = storage_sender
 
@@ -94,7 +96,9 @@ class DataClient():
         self.connected = False
         data_threads_stopped = self.stop_data_threads()
         logging.info('DataClient: all threads terminated successfully')
-        self.sock.close()
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
         logging.info('DataClient: data socket closed')
         return data_threads_stopped
 
@@ -136,6 +140,7 @@ class DataClient():
                         try:
                             self.gui_data_queue.put_nowait(reading_buffer[:reading_byte_length])
                         except Full:
+                            print 'Queue full'
                             pass
                         self.storage_sender.send(reading_buffer)
                         # notify the gui and storage controller that they have work to do

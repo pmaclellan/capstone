@@ -100,6 +100,7 @@ class NetworkController(mp.Process):
         # for python 2.7.X according to GitHub Issue...but it still gives the error
         # self.loop_thread = threading.Thread(target=self.asyncore_loop)
         # self.loop_thread.daemon = True
+        self.loop_thread = None
 
     def run(self):
         self.stop_listener_thread.start()
@@ -136,10 +137,11 @@ class NetworkController(mp.Process):
         if self.data_client.connected:
             self.data_client.close_data_port()
         self.control_client.close_control_port()
-        if self.loop_thread.is_alive():
+        if self.loop_thread is not None and self.loop_thread.is_alive():
             self.disconnect_event.set()
             asyncore.close_all()
             self.loop_thread.join()
+            self.loop_thread = None
         logging.info('NetworkController: control and data ports closed')
 
     def close_data_port(self):
