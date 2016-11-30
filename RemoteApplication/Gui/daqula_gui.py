@@ -123,7 +123,6 @@ class MainWindow(QMainWindow):
 
     def handle_connect_state(self, response):
         if response['success'] == True:
-            print 'true'
             self.enterConnectedState()
         else:
             self.exitWaitState()
@@ -182,6 +181,7 @@ class MainWindow(QMainWindow):
     def enterConnectedState(self):
         print 'connected state entered'
         self.checkBoxes.lockBoxes()
+        self.ui.connectButton.clicked.disconnect()
         self.ui.connectButton.setText('Disconnect')
         self.ui.connectButton.clicked.connect(self.handle_disconnect)
         # TODO: make a disconnect button instead
@@ -196,6 +196,7 @@ class MainWindow(QMainWindow):
     def exitConnectedState(self):
         print 'connected state exited'
         self.checkBoxes.unlockBoxes()
+        self.ui.connectButton.clicked.disconnect()
         self.ui.connectButton.clicked.connect(self.handle_connect)
         self.ui.connectButton.setEnabled(True)
         self.ui.fileEdit.setEnabled(True)
@@ -280,6 +281,7 @@ class MainWindow(QMainWindow):
         while not self.stop_event.is_set():
             if not send_queue.empty():
                 msg = send_queue.get()
+                print 'sending control message %s' % msg
                 self.control_conn.send(msg)
                 self.control_msg_from_gui_event.set()
             else:
@@ -374,14 +376,13 @@ class MainWindow(QMainWindow):
             msg.setText("Success!")
             msg.setWindowTitle("Success")
             msg.setInformativeText(message['message'])
-            #msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-            #msg.buttonClicked.connect(self.msgbtn)
             msg.exec_()
         else:
             msg.setIcon(QMessageBox.Critical)
             msg.setText("Failure!")
             msg.setWindowTitle("Action Failed!")
             msg.setInformativeText(message['message'])
+            msg.exec_()
 
 class MessageReceiverThread(QThread):
 
@@ -391,7 +392,6 @@ class MessageReceiverThread(QThread):
         QThread.__init__(self)
         self.control_conn = control_conn
         self.control_msg_from_nc_event = control_msg_from_nc_event
-        print 'init'
 
     def run(self):
         while True:

@@ -41,6 +41,9 @@ class NetworkController(mp.Process):
         # used to stop listener threads and terminate the process gracefully
         self.stop_event = mp.Event()
 
+        # used to stop asyncore loop on disconnect
+        self.disconnect_event = mp.Event()
+
         # mp.Event variable for ControlClient to notify NC that an ACK is available
         self.ack_msg_from_cc_event = mp.Event()
 
@@ -132,6 +135,8 @@ class NetworkController(mp.Process):
             self.data_client.close_data_port()
         self.control_client.close_control_port()
         if self.loop_thread.is_alive():
+            self.disconnect_event.set()
+            asyncore.close_all()
             self.loop_thread.join()
         logging.info('NetworkController: control and data ports closed')
 
@@ -140,8 +145,9 @@ class NetworkController(mp.Process):
         return self.data_client.close_data_port()
 
     def asyncore_loop(self):
-        while not self.stop_event.is_set():
+        while not self.stop_event.is_set() and not self.disconnect_event.is_set():
             asyncore.loop(timeout=1.0, count=1, use_poll=True)
+        self.disconnect_event.clear()
         logging.debug('NetworkController: asyncore loop thread finished')
 
     def get_channels_from_bitmask(self, bitmask):
@@ -306,7 +312,6 @@ class NetworkController(mp.Process):
                     data_port_disconnected = self.close_data_port()
                     self.close_control_port()
                     control_port_disconnected = self.control_client_disconnected_event.wait(timeout=5.0)
-
                     if data_port_disconnected and control_port_disconnected:
                         reply_msg = msg
                         reply_msg['success'] = True
