@@ -60,7 +60,7 @@ class MainWindow(QMainWindow):
         self.control_send_thread = threading.Thread(target=self.send_control_messages, args=[self.send_queue])
         self.control_send_thread.daemon = True
         self.control_recv_thread = QThread()
-        self.control_recv_thread.start()
+        # self.control_recv_thread.start()
         self.control_send_thread.start()
 
         # used to signal data thread to stop
@@ -113,14 +113,9 @@ class MainWindow(QMainWindow):
         connect_msg['rate'] = int(self.ui.sampleRateEdit.text())
 
         self.enterWaitState()
-        self.messageReceiver = MessageReceiver(self.control_conn)
-        print '1'
-        self.messageReceiver.moveToThread(self.control_recv_thread)
-        print '2'
-        self.messageReceiver.responseReceived.connect(self.handle_connect_state)
-        print '3'
-        self.messageReceiver.receive()
-        print '4'
+        self.msg_recv_thread = MessageReceiverThread(self.control_conn, self.control_msg_from_nc_event)
+        self.msg_recv_thread.responseReceived.connect(self.handle_connect_state)
+        self.msg_recv_thread.start()
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
         self.msg_to_be_sent_event.set()
@@ -128,6 +123,7 @@ class MainWindow(QMainWindow):
 
     def handle_connect_state(self, response):
         if response['success'] == True:
+            print 'true'
             self.enterConnectedState()
         else:
             self.exitWaitState()
@@ -152,10 +148,9 @@ class MainWindow(QMainWindow):
         disconnect_msg['type'] = 'DISCONNECT'
 
         self.enterWaitState()
-        self.messageReceiver = MessageReceiver(self.control_conn)
-        self.messageReceiver.moveToThread(self.control_recv_thread)
-        self.messageReceiver.responseReceived.connect(self.handle_disconnect_state)
-        self.messageReceiver.run()
+        self.msg_recv_thread = MessageReceiverThread(self.control_conn, self.control_msg_from_nc_event)
+        self.msg_recv_thread.responseReceived.connect(self.handle_disconnect_state)
+        self.msg_recv_thread.start()
 
         # put disconnect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(disconnect_msg)
@@ -187,6 +182,7 @@ class MainWindow(QMainWindow):
     def enterConnectedState(self):
         print 'connected state entered'
         self.checkBoxes.lockBoxes()
+        self.ui.connectButton.setText('Disconnect')
         self.ui.connectButton.clicked.connect(self.handle_disconnect)
         # TODO: make a disconnect button instead
         self.ui.connectButton.setEnabled(True)
@@ -377,6 +373,7 @@ class MainWindow(QMainWindow):
             msg.setIcon(QMessageBox.Information)
             msg.setText("Success!")
             msg.setWindowTitle("Success")
+            msg.setInformativeText(message['message'])
             #msg.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
             #msg.buttonClicked.connect(self.msgbtn)
             msg.exec_()
@@ -385,20 +382,28 @@ class MainWindow(QMainWindow):
             msg.setText("Failure!")
             msg.setWindowTitle("Action Failed!")
             msg.setInformativeText(message['message'])
-        msg._exec()
 
-class MessageReceiver(QObject):
+class MessageReceiverThread(QThread):
 
     responseReceived = pyqtSignal(dict, name='responseReceived')
 
-    def __init__(self, control_conn):
-        super(MessageReceiver, self).__init__()
+    def __init__(self, control_conn, control_msg_from_nc_event):
+        QThread.__init__(self)
         self.control_conn = control_conn
+        self.control_msg_from_nc_event = control_msg_from_nc_event
+        print 'init'
 
-    def receive(self):
-        response = self.control_conn.recv()
-        logging.debug('GUI: received reply from NC, %s', response)
-        self.responseReceived.emit(response)
+    def run(self):
+        while True:
+            if self.control_conn.poll():
+                response = self.control_conn.recv()
+                # response = {'foo' : 123}
+                logging.debug('GUI: received reply from NC, %s', response)
+                self.responseReceived.emit(response)
+                break
+            else:
+                self.control_msg_from_nc_event.wait()
+                self.control_msg_from_nc_event.clear()
 
 class DaqPlot:
     def __init__(self, parent):
