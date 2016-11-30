@@ -98,8 +98,8 @@ class NetworkController(mp.Process):
         # 1.0 sets the polling frequency (default=30.0)
         # use_poll=True is a workaround to avoid "bad file descriptor" upon closing
         # for python 2.7.X according to GitHub Issue...but it still gives the error
-        self.loop_thread = threading.Thread(target=self.asyncore_loop)
-        self.loop_thread.daemon = True
+        # self.loop_thread = threading.Thread(target=self.asyncore_loop)
+        # self.loop_thread.daemon = True
 
     def run(self):
         self.stop_listener_thread.start()
@@ -121,6 +121,8 @@ class NetworkController(mp.Process):
         logging.debug('NetworkController: connect_control_port() entered')
         if self.control_client is not None and not self.control_client.connected:
             success, serr = self.control_client.connect_control_port(host, port)
+            self.loop_thread = threading.Thread(target=self.asyncore_loop)
+            self.loop_thread.daemon = True
             self.loop_thread.start()
             return (success, serr)
 

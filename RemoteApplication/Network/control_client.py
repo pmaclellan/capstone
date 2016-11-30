@@ -6,6 +6,7 @@ import numpy as np
 import asyncore
 import sys
 import logging
+import time
 
 class ControlClient(asyncore.dispatcher):
     def __init__(self, control_protobuf_conn, ack_msg_from_cc_event, connected_event, disconnected_event):
@@ -65,6 +66,7 @@ class ControlClient(asyncore.dispatcher):
         size = bytearray(2)
         try:
             self.recv_into(size)
+            time.sleep(0.01)
         except socket.error as serr:
             logging.error('ControlClient: failed to connect, error is %s', serr)
             self.connected = False
