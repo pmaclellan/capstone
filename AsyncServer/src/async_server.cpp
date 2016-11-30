@@ -16,34 +16,19 @@ int main()
 
     while(1)
     {
-        bool stopFlag = false;
 
         // Create a control task and and start it
-        ControlTask controlTask(&stopFlag, &driverInterface);
+        ControlTask controlTask(&driverInterface);
         controlTask.startControlTask();
 
         // Create a data task and start
-        DataTask dataTask(&stopFlag);
+        DataTask dataTask;
         dataTask.startDataTask();
 
         while(1)
         {
-            if (stopFlag)
-            {
-                printf("Processing stop flag\n");
-                // close the ports
-                controlTask.closeControlTaskConnection();
-                dataTask.closeDataTaskConnection();
-
-                // join the threads
-                controlTask.stopControlTask();
-                dataTask.stopDataTask();
-                break;
-            }
-            else
-            {
-                sleep(1);
-            }
+            // Don't let the main process die
+            sleep(1);
         }
     }
 

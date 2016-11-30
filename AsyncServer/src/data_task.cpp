@@ -17,10 +17,9 @@
 #include <unistd.h>
 #include "data_task.h"
 
-DataTask::DataTask(bool * stopFlag):
+DataTask::DataTask():
     socketFd(-1),
     clientFd(-1),
-    stopFlag(stopFlag),
     myThread(),
     NUM_PACKETS(24),
     LINES_PER_PACKET(9),
@@ -28,7 +27,6 @@ DataTask::DataTask(bool * stopFlag):
     DATA_PORT(10002),
     BACKLOG(5)
 {
-
 }
 
 void DataTask::bindToSocket()
@@ -143,13 +141,17 @@ void * DataTask::staticProcessDataTask(void * c)
 
 void DataTask::processDataTask()
 {
-    // Bind the socket
-    this->bindToSocket();
-    // Accept a connection
-    this->acceptDataConnection();
-    // Read some data
-    this->readData();
-    // If we returned, let main know we need a restart
-    printf("Setting stop flag in data task\n");
-    (*this->stopFlag) = true;
+    while(1)
+    {
+        // Bind the socket
+        this->bindToSocket();
+        // Accept a connection
+        this->acceptDataConnection();
+        // Read some data
+        this->readData();
+
+        // If readData returns, we must have disconnected. Close the FDs and
+        // try to reconnect.
+        this->closeDataTaskConnection();
+    }
 }
