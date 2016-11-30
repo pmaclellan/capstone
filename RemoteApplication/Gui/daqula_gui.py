@@ -1,7 +1,7 @@
 import sip
 sip.setapi('QVariant',2)
-from PyQt4 import QtGui, uic, QtCore, QtGui
-from PyQt4.QtCore import *
+from PyQt4 import uic
+from PyQt4.QtCore import QThread, QTimer, QObject, pyqtSignal, QSettings
 from PyQt4.QtGui import *
 import pyqtgraph as pg
 import numpy as np
@@ -15,7 +15,7 @@ import logging
 import time as realtime
 
 
-class MainWindow(QtGui.QMainWindow):
+class MainWindow(QMainWindow):
     def __init__(self, control_conn, data_queue, filepath_sender,
                  readings_to_be_plotted_event, filepath_available_event,
                  control_msg_from_gui_event, control_msg_from_nc_event):
@@ -59,8 +59,8 @@ class MainWindow(QtGui.QMainWindow):
         # worker threads for asynchronously sending and receiving start/stop messages to/from NC
         self.control_send_thread = threading.Thread(target=self.send_control_messages, args=[self.send_queue])
         self.control_send_thread.daemon = True
-        self.control_recv_thread = threading.Thread(target=self.recv_control_messages)
-        self.control_recv_thread.daemon = True
+        self.control_recv_thread = QThread()
+        self.control_recv_thread.start()
         self.control_send_thread.start()
 
         # used to signal data thread to stop
@@ -96,7 +96,6 @@ class MainWindow(QtGui.QMainWindow):
             return
         
         self.daq.initPlot(numPlots)
-        self.checkBoxes.lockBoxes()
 
         # TODO: input validation
         self.filepath_sender.send(str(self.ui.fileEdit.text()))
@@ -113,21 +112,34 @@ class MainWindow(QtGui.QMainWindow):
         connect_msg['channels'] = self.checkBoxes.generateChannelBitMask()
         connect_msg['rate'] = int(self.ui.sampleRateEdit.text())
 
+        self.enterWaitState()
+        self.messageReceiver = MessageReceiver(self.control_conn)
+        print '1'
+        self.messageReceiver.moveToThread(self.control_recv_thread)
+        print '2'
+        self.messageReceiver.responseReceived.connect(self.handle_connect_state)
+        print '3'
+        self.messageReceiver.receive()
+        print '4'
         # put connect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(connect_msg)
         self.msg_to_be_sent_event.set()
-
-
         # TODO: show a 'connecting...' spinner
 
-        # disable input until we get a reply message
-        self.ui.connectButton.setEnabled(False)
-        self.ui.fileEdit.setEnabled(False)
-        self.ui.selectDirButton.setEnabled(False)
-        self.ui.sampleRateEdit.setEnabled(False)
-        self.ui.loadConfig.setEnabled(False)
-        self.ui.saveConfig.setEnabled(False)
-        
+    def handle_connect_state(self, response):
+        if response['success'] == True:
+            self.enterConnectedState()
+        else:
+            self.exitWaitState()
+        self.showResultMessage(response)
+
+    def handle_disconnect_state(self, response):
+        if response['success'] == True:
+            self.exitConnectedState()
+        else:
+            self.enterConnectedState()
+        self.showResultMessage(response)
+
     def handle_disconnect(self):
         self.ui.connectButton.setText('Connect')
         self.daq.stopPlot()
@@ -139,14 +151,64 @@ class MainWindow(QtGui.QMainWindow):
             self.sequence += 1
         disconnect_msg['type'] = 'DISCONNECT'
 
+        self.enterWaitState()
+        self.messageReceiver = MessageReceiver(self.control_conn)
+        self.messageReceiver.moveToThread(self.control_recv_thread)
+        self.messageReceiver.responseReceived.connect(self.handle_disconnect_state)
+        self.messageReceiver.run()
+
         # put disconnect message in queue to be sent to NetworkController and notify sender thread
         self.send_queue.put(disconnect_msg)
         self.msg_to_be_sent_event.set()
-
         # TODO: show a 'disconnecting...' spinner
-
+      
+    def enterWaitState(self):
+        print 'wait state entered'
+        self.checkBoxes.lockBoxes()
         self.ui.connectButton.setEnabled(False)
-        
+        self.ui.fileEdit.setEnabled(False)
+        self.ui.selectDirButton.setEnabled(False)
+        self.ui.sampleRateEdit.setEnabled(False)
+        self.ui.loadConfig.setEnabled(False)
+        self.ui.saveConfig.setEnabled(False)
+        print 'UI updated'
+
+    def exitWaitState(self):
+        print 'wait state exited'
+        self.checkBoxes.unlockBoxes()
+        self.ui.connectButton.setEnabled(True)
+        self.ui.fileEdit.setEnabled(True)
+        self.ui.selectDirButton.setEnabled(True)
+        self.ui.sampleRateEdit.setEnabled(True)
+        self.ui.loadConfig.setEnabled(True)
+        self.ui.saveConfig.setEnabled(True)
+        print 'UI updated'
+
+    def enterConnectedState(self):
+        print 'connected state entered'
+        self.checkBoxes.lockBoxes()
+        self.ui.connectButton.clicked.connect(self.handle_disconnect)
+        # TODO: make a disconnect button instead
+        self.ui.connectButton.setEnabled(True)
+        self.ui.fileEdit.setEnabled(False)
+        self.ui.selectDirButton.setEnabled(False)
+        self.ui.sampleRateEdit.setEnabled(False)
+        self.ui.loadConfig.setEnabled(False)
+        self.ui.saveConfig.setEnabled(True)
+        print 'UI updated'
+
+    def exitConnectedState(self):
+        print 'connected state exited'
+        self.checkBoxes.unlockBoxes()
+        self.ui.connectButton.clicked.connect(self.handle_connect)
+        self.ui.connectButton.setEnabled(True)
+        self.ui.fileEdit.setEnabled(True)
+        self.ui.selectDirButton.setEnabled(True)
+        self.ui.sampleRateEdit.setEnabled(True)
+        self.ui.loadConfig.setEnabled(True)
+        self.ui.saveConfig.setEnabled(True)
+        print 'UI updated'
+
     def handle_save_config(self):
         for name, obj in inspect.getmembers(self.ui):
             #if type(obj) is QComboBox:  # this works similar to isinstance, but missed some field... not sure why?
@@ -224,8 +286,6 @@ class MainWindow(QtGui.QMainWindow):
                 msg = send_queue.get()
                 self.control_conn.send(msg)
                 self.control_msg_from_gui_event.set()
-                with self.sent_dict_lock:
-                    self.sent_dict[msg['seq']] = msg
             else:
                 while not self.stop_event.is_set():
                     if self.msg_to_be_sent_event.wait(1.0):
@@ -310,22 +370,6 @@ class MainWindow(QtGui.QMainWindow):
                     if self.control_msg_from_nc_event.wait(1.0):
                         self.control_msg_from_nc_event.clear()
                         break
-
-    # def showResultMessage(self, message):
-    #     msg = QMessageBox()
-    #     if message['success']:
-    #         msg.setIcon(QMessageBox.Information)
-    #         msg.setText("Success!")
-    #         msg.setWindowTitle("Action Succeeded")
-    #         msg.setInformativeText(message['message'])
-    #     else:
-    #         msg.setIcon(QMessageBox.Critical)
-    #         msg.setText("Failure!")
-    #         msg.setWindowTitle("Action Failed")
-    #         msg.setInformativeText(message['message'])
-    #
-    #     msg.setStandardButtons(QMessageBox.Ok)
-
         
     def showResultMessage(self, message):
         msg = QMessageBox()
@@ -341,13 +385,21 @@ class MainWindow(QtGui.QMainWindow):
             msg.setText("Failure!")
             msg.setWindowTitle("Action Failed!")
             msg.setInformativeText(message['message'])
-     
-#     def msgbtn(self, i):
-#         if (i.text() == "&No"):
-#             fileUpdated = self.selectFile()
-#             if not fileUpdated:
-#                 self.cancel = True
-        
+        msg._exec()
+
+class MessageReceiver(QObject):
+
+    responseReceived = pyqtSignal(dict, name='responseReceived')
+
+    def __init__(self, control_conn):
+        super(MessageReceiver, self).__init__()
+        self.control_conn = control_conn
+
+    def receive(self):
+        response = self.control_conn.recv()
+        logging.debug('GUI: received reply from NC, %s', response)
+        self.responseReceived.emit(response)
+
 class DaqPlot:
     def __init__(self, parent):
         self.parent = parent
@@ -372,7 +424,7 @@ class DaqPlot:
         self.count = 0
         if self.fps is None:
             self.fps = 1.0
-        self.timer = QtCore.QTimer()
+        self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(0)
         
