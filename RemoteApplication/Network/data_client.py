@@ -9,8 +9,6 @@ from Queue import Full
 
 class DataClient():
     def __init__(self, storage_sender, gui_data_queue, reading_to_be_stored_event, readings_to_be_plotted_event):
-        # initialize TCP socket
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         # Pipe connection to send data readings to StorageController
         self.storage_sender = storage_sender
@@ -76,6 +74,8 @@ class DataClient():
         self.chunk_byte_length = int((len(self.active_channels) + 4) * 2 * self.chunk_size)
         logging.info('DataClient: attempting connection on %s:%d', host, port)
         try:
+            # initialize TCP socket
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.sock.connect((host, port))
         except socket.error as serr:
             logging.error('DataClient: failed to connect to host, exception is %s', serr)
@@ -85,7 +85,7 @@ class DataClient():
         self.connected = True
 
         logging.info('DataClient: connected to %s:%d', host, port)
-        logging.debug('DataClient: starting data threads')
+        logging.debug('DataClient: starting receiver thread')
         self.start_receiver_thread()
         return (self.connected, None)
 

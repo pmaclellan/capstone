@@ -11,9 +11,6 @@ class ControlClient(asyncore.dispatcher):
     def __init__(self, control_protobuf_conn, ack_msg_from_cc_event, connected_event, disconnected_event):
         asyncore.dispatcher.__init__(self)
 
-        # initialize TCP socket
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-
         # receives control messages from NetworkController to be sent over TCP control connection
         # sends ACK messages back to NetworkController
         self.control_protobuf_conn = control_protobuf_conn
@@ -37,6 +34,8 @@ class ControlClient(asyncore.dispatcher):
     def connect_control_port(self, host, port):
         logging.info('ControlClient: attempting connection to %s:%d', host, port)
         try:
+            # initialize TCP socket
+            self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
             self.connect((host, port))
             self.connected = True
             return (self.connected, None)
