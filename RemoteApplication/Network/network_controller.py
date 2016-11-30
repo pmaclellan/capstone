@@ -209,6 +209,7 @@ class NetworkController(mp.Process):
                         # asyncore client doesn't connect until it tries to recv/send,
                         # so we need to be notified asynchronously
                         control_client_connected = self.control_client_connected_event.wait(timeout=5.0)
+                        self.control_client_connected_event.clear()
 
                         if not control_client_connected:
                             # ControlClient connect timed out, notify GUI
@@ -312,6 +313,7 @@ class NetworkController(mp.Process):
                     data_port_disconnected = self.close_data_port()
                     self.close_control_port()
                     control_port_disconnected = self.control_client_disconnected_event.wait(timeout=5.0)
+                    self.control_client_disconnected_event.clear()
                     if data_port_disconnected and control_port_disconnected:
                         reply_msg = msg
                         reply_msg['success'] = True
