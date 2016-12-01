@@ -172,8 +172,8 @@ void ControlTask::processStop()
     uint16_t ackSize;
     printf("Process stop request in control task\n");
 
-    // Send stop to dma controller
-    this->driverInterface->sendStop();
+//    // Send stop to dma controller
+//    this->driverInterface->sendStop();
 
     // Send ack back to client
     this->requestWrapper.SerializeToString(&ackString);
