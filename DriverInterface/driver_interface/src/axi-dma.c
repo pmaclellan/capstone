@@ -32,6 +32,7 @@ void startDMA(uint16_t sampleFreq)
     // Set the sample frequency
     configGpio(GPIO_SAMPLE_FREQ, SIZE_SAMPLE_FREQ, sampleFreq);
     // Toggle the timestamp reset
+    configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 1);
     configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 0);
     // Enable the ADC
     configGpio(GPIO_ADC_EN, SIZE_ADC_EN, 1);
@@ -41,5 +42,6 @@ void stopDMA()
 {
     printf("Stopping DMA...\n");
     // Disable the ADC
-    initDMA();
+    configGpio(GPIO_TIMESTAMP_RST, SIZE_TIMESTAMP_RST, 1);
+    configGpio(GPIO_ADC_EN, SIZE_ADC_EN, 0);
 }
