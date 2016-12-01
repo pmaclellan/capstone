@@ -334,7 +334,7 @@ class DaqPlot:
     def initPlot(self, numPlots):
         self.dataToPlot = [[]for i in range(numPlots)]
         self.nPlots = numPlots
-        self.nSamples = 150
+        self.nSamples = 1000
         self.curves = []
         for i in range(numPlots):
             # c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
@@ -364,9 +364,9 @@ class DaqPlot:
         
     def update(self):
         if not self.parent.data_queue.empty():
-            reading = [self.parent.data_queue.get()]
-            [[self.dataToPlot[(j-16)/2].append((float(reading[i][j] + (reading[i][j+1] << 8))/6553.6)-5) for i in range(0,len(reading))] for j in range(16,len(reading[0]),2)]
-            
+            reading = self.parent.data_queue.get()
+            # Beware: massive list comprehension ahead
+            [[self.dataToPlot[(j-8)/2].append((float(reading[i+j] + (reading[i+j+1] << 8))/6553.6)-5) for i in range(0,len(reading), 2*(self.nPlots+4))] for j in range(8,2*(self.nPlots+4),2)]
             if len(self.dataToPlot[0]) >= self.nSamples:
                 self.count += 1
                 for i in range(self.nPlots):
