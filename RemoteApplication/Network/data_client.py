@@ -32,8 +32,7 @@ class DataClient():
         self.recv_stop_event = threading.Event()
 
         # Create worker threads
-        self.receiver_thread = threading.Thread(target=self.receive_data, args=[self.recv_stop_event])
-        self.receiver_thread.daemon = True
+        self.receiver_thread = None
 
         self.connected = False
         self.synchronized = False
@@ -49,12 +48,15 @@ class DataClient():
         self.expected_bytes_sent_lock = threading.Lock()
 
     def start_receiver_thread(self):
+        self.receiver_thread = threading.Thread(target=self.receive_data, args=[self.recv_stop_event])
+        self.receiver_thread.daemon = True
         self.receiver_thread.start()
 
     def stop_data_threads(self):
-        if self.receiver_thread.is_alive():
+        if self.receiver_thread is not None and self.receiver_thread.is_alive():
             self.recv_stop_event.set()
             self.receiver_thread.join()
+            self.receiver_thread = None
         return True
 
     def get_channels_from_bitmask(self, bitmask):
