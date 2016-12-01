@@ -105,16 +105,25 @@ void DataTask::readData()
     bool connectionStatus = true;
     while(connectionStatus)
     {
-        read(axiDmaFd, buf, readSize);
-        if(send(this->clientFd, buf, readSize - garbageSize, 0) < 0)
+        if(read(axiDmaFd, buf, readSize) <= 0)
         {
-            printf("Error data client disconnected\n");
+            printf("Error data client disconnected while reading\n");
             connectionStatus = false;
         }
+        else
+        {
+            if(send(this->clientFd, buf, readSize - garbageSize, 0) < 0)
+            {
+                printf("Error data client disconnected while sending\n");
+                connectionStatus = false;
+            }
+        }
+
     }
 
     // Free malloced memory
     free(buf);
+    close(axiDmaFd);
 }
 
 void DataTask::startDataTask()
