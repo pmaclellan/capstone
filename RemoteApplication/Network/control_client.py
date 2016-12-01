@@ -6,6 +6,7 @@ import numpy as np
 import asyncore
 import sys
 import logging
+import time
 
 class ControlClient(asyncore.dispatcher):
     def __init__(self, control_protobuf_conn, ack_msg_from_cc_event, connected_event, disconnected_event):
@@ -55,7 +56,8 @@ class ControlClient(asyncore.dispatcher):
     def handle_close(self):
         logging.debug('ControlClient: handle_close() entered')
         self.connected = False
-        self.close()
+        if self.socket is not None:
+            self.close()
         self.disconnected_event.set()
         return False
 
@@ -64,6 +66,7 @@ class ControlClient(asyncore.dispatcher):
         size = bytearray(2)
         try:
             self.recv_into(size)
+            time.sleep(0.01)
         except socket.error as serr:
             logging.error('ControlClient: failed to connect, error is %s', serr)
             self.connected = False
@@ -71,7 +74,6 @@ class ControlClient(asyncore.dispatcher):
             return
 
         length = (size[1] << 8) + size[0]
-        print length
         logging.debug('ControlClient: received length header: %s', length)
 
         # read the message content

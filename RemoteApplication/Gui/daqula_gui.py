@@ -289,86 +289,7 @@ class MainWindow(QMainWindow):
                     if self.msg_to_be_sent_event.wait(1.0):
                         self.msg_to_be_sent_event.clear()
                         break
-
-    def recv_control_messages(self):
-        while True:
-            if self.control_conn.poll():
-                response = self.control_conn.recv()
-                with self.sent_dict_lock:
-                    if response['seq'] in self.sent_dict.keys():
-                        self.sent_dict.pop(response['seq'])
-                        logging.debug('GUI: received reply from NC, %s', response)
-                        # TODO: dear god please put this stuff into helper functions
-                        if response['type'] == 'CONNECT':
-                            if response['success'] == True:
-                                # grab 64-bit Unix timestamp to add to each reading offset
-                                self.start_time = response['timestamp']
-                                self.chunk_size = response['chunk']
-                                self.data_receiver_thread.start()
-
-                                self.ui.connectButton.setText('Disconnect')
-                                self.ui.connectButton.clicked.disconnect()
-                                self.ui.connectButton.clicked.connect(self.handle_disconnect)
-                                self.ui.connectButton.setEnabled(True)
-                                self.ui.fileEdit.setEnabled(False)
-                                self.ui.selectDirButton.setEnabled(False)
-                                self.ui.sampleRateEdit.setEnabled(False)
-                                self.ui.loadConfig.setEnabled(False)
-                                self.ui.saveConfig.setEnabled(False)
-                                self.checkBoxes.lockBoxes()
-                                
-                            else:
-                                self.ui.connectButton.setText('Connect')
-                                self.ui.connectButton.clicked.disconnect()
-                                self.ui.connectButton.clicked.connect(self.handle_connect)
-                                self.ui.connectButton.setEnabled(True)
-                                self.ui.fileEdit.setEnabled(True)
-                                self.ui.selectDirButton.setEnabled(True)
-                                self.ui.sampleRateEdit.setEnabled(True)
-                                self.ui.loadConfig.setEnabled(True)
-                                self.ui.saveConfig.setEnabled(True)
-                                # self.checkBoxes.unlockBoxes()
-                            
-                            # self.showResultMessage(response)
-
-                        elif response['type'] == 'DISCONNECT':
-                            if response['success'] == True:
-                                # stop the data receiver thread
-                                self.stop_event.set()
-
-                                self.ui.connectButton.setText('Connect')
-                                self.ui.connectButton.clicked.disconnect()
-                                self.ui.connectButton.clicked.connect(self.handle_connect)
-                                self.ui.connectButton.setEnabled(True)
-                                self.ui.fileEdit.setEnabled(True)
-                                self.ui.selectDirButton.setEnabled(True)
-                                self.ui.sampleRateEdit.setEnabled(True)
-                                self.ui.loadConfig.setEnabled(True)
-                                self.ui.saveConfig.setEnabled(True)
-                                # self.checkBoxes.unlockBoxes()
-                                
-                            else:
-                                self.ui.connectButton.setText('Disconnect')
-                                self.ui.connectButton.clicked.disconnect()
-                                self.ui.connectButton.clicked.connect(self.handle_disconnect)
-                                self.ui.connectButton.setEnabled(True)
-                                self.ui.fileEdit.setEnabled(True)
-                                self.ui.selectDirButton.setEnabled(False)
-                                self.ui.sampleRateEdit.setEnabled(False)
-                                self.ui.loadConfig.setEnabled(False)
-                                self.ui.saveConfig.setEnabled(False)
-                                self.checkBoxes.lockBoxes()
-                            
-                            # self.showResultMessage(response)
-
-                    else:
-                        raise RuntimeWarning('unexpected message received from NetworkController')
-            else:
-                while not self.stop_event.is_set():
-                    if self.control_msg_from_nc_event.wait(1.0):
-                        self.control_msg_from_nc_event.clear()
-                        break
-        
+   
     def showResultMessage(self, message):
         msg = QMessageBox()
         if message['success']:
@@ -416,7 +337,8 @@ class DaqPlot:
         self.nSamples = 150
         self.curves = []
         for i in range(numPlots):
-            c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
+            # c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
+            c = pg.PlotCurveItem(pen='g')
             self.parent.ui.daqPlot.addItem(c)
             c.setPos(0,i*10)
             self.curves.append(c)
