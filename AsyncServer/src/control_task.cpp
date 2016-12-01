@@ -88,16 +88,10 @@ bool ControlTask::recvMessage()
     // Read incoming message size
     uint16_t messageSize;
     int receive = recv(this->clientFd, &messageSize, sizeof(uint16_t), 0);
-    if(receive < 0)
+    if(receive <= 0)
     {
         perror("Error receiving control message size");
         retValue = false;
-    }
-    else if(receive == 0)
-    {
-        printf("Error control task client disconnected\n");
-        // Send stop to fifo
-        this->driverInterface->sendStop();
     }
 
     std::vector<char> buffer(messageSize);
@@ -127,7 +121,7 @@ void ControlTask::processStart()
             startRequest.port(), startRequest.channels());
 
     // Parse active channels to find which are active and how many
-    for(int i = 0; i < NUM_CHANNELS; i++)
+    for(int i = 0; i < this->NUM_CHANNELS; i++)
     {
         if(getBit(startRequest.channels(), i) == 1)
         {
@@ -171,9 +165,6 @@ void ControlTask::processStop()
     std::string ackString;
     uint16_t ackSize;
     printf("Process stop request in control task\n");
-
-//    // Send stop to dma controller
-//    this->driverInterface->sendStop();
 
     // Send ack back to client
     this->requestWrapper.SerializeToString(&ackString);
@@ -247,6 +238,9 @@ void ControlTask::processControlTask()
                 this->processSens();
             }
         }
+
+        // Stop the DMA
+        this->driverInterface->sendStop();
 
         // If we get here, recvMessage failed because of a disconnect. Close the
         // FDs and attempt to reconnect
