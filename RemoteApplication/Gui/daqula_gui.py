@@ -391,7 +391,7 @@ class DaqPlot:
                     twosComp = reading[i][j] + (reading[i][j+1] << 8)
                     # convert twos compliment
                     if (twosComp & 0x8000 == 0x8000):
-                    	count = -1*((~a & 0x7FFF) + 1)
+                    	count = -1*((~twosComp & 0x7FFF) + 1)
                     else:
                     	count = twosComp
 
