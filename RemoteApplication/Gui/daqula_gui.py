@@ -386,14 +386,19 @@ class DaqPlot:
     def update(self):
         if not self.parent.data_queue.empty():
             reading = [self.parent.data_queue.get()]
-            twosComp = reading[i][j] + (reading[i][j+1] << 8)
-            # convert twos compliment
-            if (twosComp & 0x8000 == 0x8000):
-            	count = -1*((~a & 0x7FFF) + 1)
-            else:
-            	count = twosComp
+            for i in range(0, len(reading)):
+                for j in range(16,len(reading[0]),2):
+                    twosComp = reading[i][j] + (reading[i][j+1] << 8)
+                    # convert twos compliment
+                    if (twosComp & 0x8000 == 0x8000):
+                    	count = -1*((~a & 0x7FFF) + 1)
+                    else:
+                    	count = twosComp
 
-            [[self.dataToPlot[(j-16)/2].append(float(5*count/32768)) for i in range(0,len(reading))] for j in range(16,len(reading[0]),2)]
+                    self.dataToPlot[(j-16)/2].append(float(5*count/32768));
+
+            # RIP giant list comprehension
+            # [[self.dataToPlot[(j-16)/2].append(float(5*count/32768)) for i in range(0,len(reading))] for j in range(16,len(reading[0]),2)]
             
             if len(self.dataToPlot[0]) >= self.nSamples:
                 self.count += 1
