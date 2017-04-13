@@ -91,7 +91,8 @@ class MainWindow(QtGui.QMainWindow):
         
     def handle_connect(self):        
         #get active channels
-        numPlots = self.checkBoxes.numActive()
+        # numPlots = self.checkBoxes.numActive()
+        numPlots = 8
         if not numPlots:
             return
         
@@ -375,6 +376,8 @@ class DaqPlot:
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update)
         self.timer.start(0)
+        # used for ignoring the timestamp for plotting, must be changed before channel select
+        self.bytesToIgnore = 72 - 2*self.nPlots
         
     def stopPlot(self):
         for i in range(self.nPlots):
@@ -387,7 +390,7 @@ class DaqPlot:
         if not self.parent.data_queue.empty():
             reading = [self.parent.data_queue.get()]
             for i in range(0, len(reading)):
-                for j in range(16,len(reading[0]),2):
+                for j in range(self.bytesToIgnore,len(reading[0]),2):
                     twosComp = reading[i][j] + (reading[i][j+1] << 8)
                     # convert twos compliment
                     if (twosComp & 0x8000 == 0x8000):
@@ -395,7 +398,7 @@ class DaqPlot:
                     else:
                     	count = twosComp
 
-                    self.dataToPlot[(j-16)/2].append(float(5*count/32768));
+                    self.dataToPlot[(j-self.bytesToIgnore)/2].append(float(5*count/32768));
 
             # RIP giant list comprehension
             # [[self.dataToPlot[(j-16)/2].append(float(5*count/32768)) for i in range(0,len(reading))] for j in range(16,len(reading[0]),2)]
