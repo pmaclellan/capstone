@@ -357,7 +357,7 @@ class DaqPlot:
     def initPlot(self, numPlots):
         self.dataToPlot = [[]for i in range(numPlots)]
         self.nPlots = numPlots
-        self.nSamples = 150
+        self.nSamples = 125
         self.curves = []
         for i in range(numPlots):
             c = pg.PlotCurveItem(pen=(i,numPlots*1.3))
